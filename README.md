@@ -41,7 +41,7 @@ Razlog je tehnički i objašnjen je u poglavlju 3.
 
 ## 2. Aplikacija u radu
 
-![Lista resursa](docs/screenshot.png)
+<img src="docs/screenshot.png" alt="Lista resursa" width="320">
 
 Ekran je snimljen sa fizičkog uređaja (Pixel 8, Android 17) povezanog na server preko
 lokalne mreže. Prikazano je svih sedam aktivnih resursa iz početnih podataka.
