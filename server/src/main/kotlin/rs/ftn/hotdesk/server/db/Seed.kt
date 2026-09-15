@@ -2,6 +2,7 @@ package rs.ftn.hotdesk.server.db
 
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import rs.ftn.hotdesk.server.auth.Passwords
 import rs.ftn.hotdesk.shared.model.ResourceType
 import rs.ftn.hotdesk.shared.model.Role
 import java.util.UUID
@@ -9,8 +10,8 @@ import java.util.UUID
 /**
  * Pocetni podaci. Bez ovoga prvi ekran aplikacije je prazan, sto je losa demonstracija.
  *
- * Lozinke su namerno u cistom tekstu u PoC fazi i nisu upotrebljive nigde osim lokalno.
- * Faza 2 uvodi BCrypt - vidi TODO u AuthRoutes.
+ * Od faze 2 lozinke prolaze kroz BCrypt (cena 12) i u bazi stoji samo hash.
+ * Vrednosti ispod su demonstracione i sluze iskljucivo za lokalno pokretanje.
  */
 object Seed {
 
@@ -27,14 +28,14 @@ object Seed {
             it[id] = adminId
             it[name] = "Administrator"
             it[email] = ADMIN_EMAIL
-            it[passwordHash] = "admin123"
+            it[passwordHash] = Passwords.hash("admin123")
             it[role] = Role.ADMIN.name
         }
         Users.insert {
             it[id] = userId
             it[name] = "Pera Peric"
             it[email] = USER_EMAIL
-            it[passwordHash] = "pera123"
+            it[passwordHash] = Passwords.hash("pera123")
             it[role] = Role.USER.name
         }
 

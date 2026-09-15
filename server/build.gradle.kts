@@ -24,6 +24,11 @@ dependencies {
     implementation(libs.exposed.jdbc)
     implementation(libs.h2)
 
+    // --- autentikacija, faza 2 ---
+    implementation(libs.ktor.serverAuth)
+    implementation(libs.ktor.serverAuthJwt)
+    implementation(libs.bcrypt)
+
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
     testImplementation(libs.kotlinx.coroutinesTest)
