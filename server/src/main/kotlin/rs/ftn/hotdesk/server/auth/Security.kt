@@ -4,7 +4,12 @@ import at.favre.lib.crypto.bcrypt.BCrypt
 import com.auth0.jwt.JWT
 import com.auth0.jwt.JWTVerifier
 import com.auth0.jwt.algorithms.Algorithm
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.auth.principal
 import io.ktor.server.config.ApplicationConfig
+import io.ktor.server.response.respond
+import rs.ftn.hotdesk.shared.model.ErrorResponse
 import rs.ftn.hotdesk.shared.model.Role
 import java.util.Date
 
@@ -79,4 +84,31 @@ class JwtService(config: ApplicationConfig) {
         const val CLAIM_ROLE = "role"
         const val CONFIG_NAME = "auth-jwt"
     }
+}
+
+/**
+ * Identitet pozivaoca.
+ *
+ * Poziva se iskljucivo unutar authenticate bloka, gde je principal uvek prisutan:
+ * zahtev bez ispravnog tokena Ktor odbija sa 401 pre nego sto stigne do tela rute.
+ */
+fun ApplicationCall.user(): UserPrincipal =
+    principal<UserPrincipal>()
+        ?: error("user() pozvan izvan authenticate bloka")
+
+/**
+ * Provera administratorske uloge.
+ *
+ * Vraca true ako pozivalac sme dalje. Ako ne sme, sam odgovara sa 403 i vraca
+ * false, pa je na pozivnom mestu dovoljno `if (!call.requireAdmin()) return@get`.
+ *
+ * 403 a ne 401: token jeste ispravan, samo uloga nije dovoljna.
+ */
+suspend fun ApplicationCall.requireAdmin(): Boolean {
+    if (user().isAdmin) return true
+    respond(
+        HttpStatusCode.Forbidden,
+        ErrorResponse("FORBIDDEN", "Potrebna je administratorska uloga.")
+    )
+    return false
 }
