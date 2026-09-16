@@ -1,0 +1,8 @@
+﻿"faza","rss_mb","private_mb","heap_used_mb","heap_total_mb"
+"posle starta (mirovanje)","161.4","213.8","19.5","58"
+"posle zagrevanja","224.8","278.7","30.7","84"
+"pod opterecenjem: resources","238.4","287","34.6","84"
+"pod opterecenjem: availability","237.8","297.9","33.8","84"
+"pod opterecenjem: mine","243.3","293.1","42","84"
+"pod opterecenjem: login","274.5","323.6","48.5","84"
+"posle GC.run","258.6","307.2","17","68"
