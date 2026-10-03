@@ -15,6 +15,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import rs.ftn.hotdesk.android.data.Session
 import rs.ftn.hotdesk.shared.model.ResourceDto
 import rs.ftn.hotdesk.shared.model.ResourceType
 
@@ -36,7 +38,23 @@ import rs.ftn.hotdesk.shared.model.ResourceType
 fun ResourceListScreen(vm: ResourceListViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
 
+    val korisnik by Session.user.collectAsStateWithLifecycle()
+
     Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
+
+        // Ko je prijavljen i sa kojom ulogom. Uloga dolazi iz JWT tokena, kao
+        // enum Role iz modula :core - ista vrednost koju server upisuje u token.
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                korisnik?.let { "${it.name} · ${it.role}" }.orEmpty(),
+                style = MaterialTheme.typography.bodySmall
+            )
+            TextButton(onClick = { Session.end() }) { Text("Odjava") }
+        }
 
         Text("Slobodni resursi", style = MaterialTheme.typography.headlineSmall)
 

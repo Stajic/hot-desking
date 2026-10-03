@@ -6,8 +6,8 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
-import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -19,6 +19,8 @@ import kotlinx.serialization.json.Json
 import rs.ftn.hotdesk.shared.model.AvailabilityDto
 import rs.ftn.hotdesk.shared.model.BookingDto
 import rs.ftn.hotdesk.shared.model.CreateBookingRequest
+import rs.ftn.hotdesk.shared.model.LoginRequest
+import rs.ftn.hotdesk.shared.model.LoginResponse
 import rs.ftn.hotdesk.shared.model.ResourceDto
 import rs.ftn.hotdesk.shared.model.ResourceType
 
@@ -41,8 +43,14 @@ object ApiClient {
      */
     var baseUrl: String = "http://10.0.2.2:8080"
 
-    /** TODO(auth): zameniti JWT tokenom iz LoginResponse. */
-    var currentUserId: String? = null
+    /**
+     * JWT token dobijen prijavom. Postavlja ga i brise [Session]; ovde stoji zato
+     * sto ga svaki zasticen zahtev salje kao `Authorization: Bearer <token>`.
+     *
+     * Dok je null, zasticene rute vracaju 401 - javne (lista resursa, dostupnost)
+     * rade i bez njega.
+     */
+    var token: String? = null
 
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
@@ -54,6 +62,28 @@ object ApiClient {
         }
         defaultRequest {
             contentType(ContentType.Application.Json)
+        }
+    }
+
+    /** Ishod prijave. Mrezni prekid se ne hvata ovde nego u ViewModel-u. */
+    sealed interface LoginOutcome {
+        data class Ok(val response: LoginResponse) : LoginOutcome
+        data object BadCredentials : LoginOutcome
+        data class Failed(val message: String) : LoginOutcome
+    }
+
+    /**
+     * Prijava. Server namerno vraca istu poruku za nepostojeci email i pogresnu
+     * lozinku, pa ih ni klijent ne razdvaja.
+     */
+    suspend fun login(email: String, password: String): LoginOutcome {
+        val response = client.post("$baseUrl/api/auth/login") {
+            setBody(LoginRequest(email = email, password = password))
+        }
+        return when (response.status) {
+            HttpStatusCode.OK -> LoginOutcome.Ok(response.body())
+            HttpStatusCode.Unauthorized -> LoginOutcome.BadCredentials
+            else -> LoginOutcome.Failed("Neocekivan odgovor servera (${response.status.value}).")
         }
     }
 
@@ -73,7 +103,7 @@ object ApiClient {
 
     suspend fun myBookings(): List<BookingDto> =
         client.get("$baseUrl/api/bookings/mine") {
-            header("X-User-Id", currentUserId)
+            token?.let { bearerAuth(it) }
         }.body()
 
     sealed interface BookingOutcome {
@@ -84,7 +114,7 @@ object ApiClient {
 
     suspend fun book(req: CreateBookingRequest): BookingOutcome {
         val response = client.post("$baseUrl/api/bookings") {
-            header("X-User-Id", currentUserId)
+            token?.let { bearerAuth(it) }
             setBody(req)
         }
         return when (response.status) {
