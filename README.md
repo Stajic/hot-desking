@@ -41,10 +41,16 @@ Razlog je tehnički i objašnjen je u poglavlju 3.
 
 ## 2. Aplikacija u radu
 
-<img src="docs/screenshot.png" alt="Lista resursa" width="320">
+| Lista resursa | Mreža slotova | Moje rezervacije |
+|---|---|---|
+| <img src="docs/lista-resursa.png" alt="Lista resursa" width="240"> | <img src="docs/mreza-slotova.png" alt="Mreža slotova" width="240"> | <img src="docs/moje-rezervacije.png" alt="Moje rezervacije" width="240"> |
 
-Ekran je snimljen sa fizičkog uređaja (Pixel 8, Android 17) povezanog na server preko
-lokalne mreže. Prikazano je svih sedam aktivnih resursa iz početnih podataka.
+Ekrani su snimljeni sa fizičkog uređaja (Pixel 8, Android 17) povezanog na server preko
+lokalne mreže. Posle prijave, korisnik vidi listu resursa sa filterima; dodir na resurs
+otvara dnevnu mrežu od 24 slota, gde dodir na slobodan termin bira podrazumevanu dužinu
+(sto ceo dan, sala sat vremena) i šalje rezervaciju. Pregled „Moje rezervacije" deli
+aktivne od istorije: otkazana rezervacija ne nestaje, nego prelazi u istoriju, a njen
+termin se odmah oslobađa.
 
 Odgovor servera na `GET /api/resources`, skraćen na tri resursa:
 
@@ -148,19 +154,87 @@ Paralelnih zahteva: 50 | prihvaceno: 1 | odbijeno (409): 49
 
 Uz taj test prolaze i `delimicno_preklapanje_takodje_pada` (09:00–10:00 naspram 09:30–10:30,
 dele tačno jedan slot) i `otkazana_rezervacija_oslobadja_termin`. Ukupno tri testa u `:server`
-i deset testova `BookingRules` u `:core` — svi prolaze.
+i trinaest testova `BookingRules` u `:core` — svi prolaze.
+
+### Iz ugla korisnika
+
+<img src="docs/konflikt-409.png" alt="Konflikt pri rezervaciji" width="240" align="right">
+
+Aplikacija prikazuje mrežu slotova onakvu kakva je bila u trenutku učitavanja. Između
+učitavanja i slanja drugi korisnik može da zauzme isti termin — upravo situacija iz
+odeljka „Problem".
+
+Provereno na uređaju: na telefonu je izabran termin 14:00–15:00, a sa drugog klijenta
+je u međuvremenu zauzet 14:30–15:00. Zahtev sa telefona, poslat nad zastarelom mrežom,
+dobija `409` sa kodom `SLOT_TAKEN`; aplikacija prikazuje poruku i osvežava mrežu.
+
+Dva termina dele samo jedan slot, a odbijen je **ceo** zahtev: 14:00 je ostao slobodan,
+i u bazi nije ostalo zaglavlje odbijene rezervacije. Izuzetak se propušta izvan
+transakcije, pa se poništava i već upisano zaglavlje — što je u `BookingService.kt`
+navedeno kao najlakše mesto za grešku u celom rešenju.
+
+<br clear="right">
 
 ---
 
-## 4. Arhitektura
+## 4. Merenja
+
+Merenja su uvedena od faze 1, kao niz uporedivih tačaka posle svakog većeg koraka, a ne
+kao jednokratna provera na kraju. Uslovi su isti u svakoj tački: ista mašina, k6 za
+opterećenje i `jcmd` za memoriju, samostalni JAR umesto pokretanja kroz Gradle,
+zagrevanje koje se odbacuje. Svaki izveštaj beleži okruženje, metodologiju i ograničenja.
+
+| Tačka merenja | Commit | Izveštaj |
+|---|---|---|
+| Faza 1 | `8ed000a` | [`docs/merenja/faza-1`](docs/merenja/faza-1/README.md) |
+| Posle autentikacije | `2026226` | [`docs/merenja/faza-2-korak-1`](docs/merenja/faza-2-korak-1/README.md) |
+| Kraj faze 2 | `60daee4` | [`docs/merenja/faza-2-kraj`](docs/merenja/faza-2-kraj/README.md) |
+
+| | Faza 1 | Posle autentikacije | Kraj faze 2 |
+|---|---|---|---|
+| Topao start (do prvog odgovora) | 1 764 ms | 1 761 ms | 1 770 ms |
+| Hladan start (prazna baza) | 1 778 ms | 2 292 ms | 2 316 ms |
+| Memorija stvarno zauzeta posle GC-a | 15,1 MB | 17,0 MB | 17,0 MB |
+| `GET /api/resources` — zahteva/s, medijana | 3 250, 2,90 ms | 3 326, 2,85 ms | 3 305, 2,84 ms |
+| `GET /availability` — zahteva/s, medijana | 3 161, 2,97 ms | 3 312, 2,82 ms | 3 317, 2,79 ms |
+| `GET /api/bookings/mine` — medijana | — | 3,40 ms | 3,29 ms |
+| `POST /api/auth/login` — medijana | — | 427 ms | 440 ms |
+| Samostalni JAR | 20,5 MB | 27,3 MB | 27,3 MB |
+| Neuspelih zahteva | 0 / 192 365 | 0 / 281 562 | 0 / 283 655 |
+
+AMD Ryzen 7 5800H, 13,9 GB RAM, Windows 11, JDK 21, 10 istovremenih korisnika, preko `localhost`.
+
+**Glavni nalazi:**
+
+- **Odziv i stabilnost.** Server na razvojnom laptopu opslužuje oko 3 300 zahteva u sekundi
+  uz medijanu ispod 3 ms. Nijedan od oko 758 000 zahteva kroz tri merenja nije pao.
+- **Memorija.** Aplikacija posle sakupljanja smeća drži 15–17 MB. Radni skup od oko
+  150–170 MB u mirovanju pretežno je trošak same JVM, ne podataka aplikacije.
+- **Deljena logika nema merljiv trošak.** Ruta `availability` izvršava `BookingRules` iz
+  deljenog modula i po medijani je u rangu rute koja samo čita listu.
+- **Autentikacija: skupo jednom, jeftino uvek.** Provera tokena traje oko 2,5 µs; prijava
+  oko 256 ms, namerno, zbog BCrypt-a. Odnos je oko 100 000 : 1.
+- **Prava vremenska zona.** `kotlinx-datetime` je izolovano oko 100 puta sporiji od ranijeg
+  fiksnog pomeraja, ali apsolutno košta oko 0,1 µs po pozivu — na sistemu nemerljivo.
+- **Ekosistem.** Autentikacija je donela 6,8 MB tranzitivnih zavisnosti (Guava, Jackson,
+  Ktor HTTP klijent), od kojih se nijedna u projektu ne koristi. Ktor-ova JWT podrška je
+  tanak omotač oko Java biblioteke, koja sa sobom donosi deo Java ekosistema.
+
+**Ograda.** Apsolutni brojevi sami po sebi još ne dokazuju da je performansa „u rangu
+adekvatnom za serverski deo" — za to je potreban komparator, npr. ekvivalentan servis na
+drugoj platformi izmeren na istoj mašini. To je sledeći korak u merenjima.
+
+---
+
+## 5. Arhitektura
 
 Tri modula nose sistem:
 
 ```
           ┌─────────────────────────┐
           │         :core           │   Kotlin Multiplatform
-          │  DTO klase + enumi      │   ne zavisi ni od čega
-          │  BookingRules           │   čist Kotlin kod
+          │  DTO klase + enumi      │   čist Kotlin kod; zavisi samo od
+          │  BookingRules           │   kotlinx-serialization i -datetime
           └───────────┬─────────────┘
                       │
           ┌───────────┴────────────┐
@@ -174,9 +248,10 @@ Tri modula nose sistem:
 ```
 
 `settings.gradle.kts` navodi i četvrti modul, `:app:shared`. Njega generiše zvanični
-Kotlin Multiplatform čarobnjak kao mesto za deljeni Compose UI; u fazi 1 se ne koristi,
-jer svi ekrani žive u `:app:androidApp`. Zadržan je za fazu 2, kada deljenje UI-ja
-između platformi postane relevantno.
+Kotlin Multiplatform čarobnjak kao mesto za deljeni Compose UI. Ne koristi se ni posle
+faze 2: postoji samo Android klijent, pa svi ekrani žive u `:app:androidApp`, i deljenje
+korisničkog interfejsa između platformi još nema svrhu. Modul je kandidat za uklanjanje
+ako se drugi klijent ne uvede.
 
 ### Šta deljeni modul zapravo nosi
 
@@ -192,11 +267,29 @@ na klijentu da korisnik odmah vidi zašto dugme ne radi, na serveru kao autorite
 klijentu ne veruje. Bez deljenog modula ta logika postoji dvaput i razilazi se pri prvoj
 izmeni.
 
+<img src="docs/pravila-na-klijentu.png" alt="BookingRules na klijentu" width="240" align="right">
+
+Od faze 2 to je ponašanje aplikacije, ne samo namera. Mreža slotova na telefonu koristi
+iste funkcije iz `:core` koje server poziva:
+
+- `validate()` odlučuje koji slotovi mogu da se izaberu. Snimak desno je današnji dan
+  posle 20:00: server za sva 24 slota kaže da su slobodna, jer zna samo za zauzetost; klijent
+  ih prikazuje kao prošle, jer `validate()` odbija termin u prošlosti.
+- `defaultSlots()` određuje koliko se bira jednim dodirom — sto ceo dan, sala sat vremena.
+- `validate()` se ponovo poziva nad celim izborom neposredno pre slanja, a zatim još jednom
+  na serveru.
+
+Isto važi i za model: `LoginRequest`, `BookingDto` i enum `Role` su iste klase koje
+server serijalizuje, a klijent deserijalizuje — na klijentu nije napisana nijedna
+paralelna definicija.
+
+<br clear="right">
+
 Testovi u `commonTest` izvršavaju se na svakom targetu, jedna provera dokazana istovremeno za server i za Android.
 
 ---
 
-## 5. Model podataka
+## 6. Model podataka
 
 Sto i sala koriste **isti** model. Razlikuje se samo ono što interfejs nudi (sto se uzima za ceo dan ili pola dana, sala u blokovima od pola sata). Krajnje vreme je ekskluzivno:
 rezervacija 09:00–10:00 zauzima slotove 09:00 i 09:30.
@@ -224,9 +317,12 @@ created_at
 
 `bookings` nosi identitet, vlasnika i istoriju. `booking_slots` nosi garanciju zauzetosti.
 
+`password_hash` od faze 2 čuva BCrypt heš (cena 12), nikad samu lozinku. Heš ima 60
+znakova i staje u postojeću kolonu `varchar(100)`, pa šema nije menjana.
+
 ---
 
-## 6. Tehnološki stek
+## 7. Tehnološki stek
 
 | Sloj | Tehnologija |
 |---|---|
@@ -239,6 +335,8 @@ created_at
 | Android UI | Jetpack Compose, Material 3 |
 | Upravljanje stanjem | ViewModel + StateFlow, unidirekcioni tok podataka |
 | Mrežni klijent | Ktor Client (OkHttp engine) |
+| Autentikacija | JWT (HS256) za zahteve, BCrypt za lozinke |
+| Datum i vreme | kotlinx-datetime, vremenska zona `Europe/Belgrade` |
 
 Baza se menja izmenom četiri linije u `server/src/main/resources/application.conf`; nijedna
 linija aplikativnog koda ne zna koja je ispod. H2 je podrazumevan jer ne zahteva instalaciju.
@@ -254,8 +352,15 @@ Verzije su zaključane u `gradle/libs.versions.toml`:
 | Exposed | 1.0.0 |
 | H2 | 2.3.232 |
 | kotlinx.serialization | 1.11.0 |
+| kotlinx-datetime | 0.8.0 |
+| BCrypt (`at.favre.lib:bcrypt`) | 0.10.2 |
+| java-jwt (tranzitivno, preko `ktor-server-auth-jwt`) | 4.6.0 |
 | Compose Multiplatform | 1.11.1 |
 | JDK | 21 (Temurin) |
+| Android minSdk | 26 (Android 8.0) |
+
+minSdk je u fazi 2 podignut sa 24 na 26 zbog `kotlinx-datetime`, koji se na Androidu
+oslanja na `java.time`, dostupan od API nivoa 26.
 
 Exposed 1.0 koristi pakete `org.jetbrains.exposed.v1.core` i `org.jetbrains.exposed.v1.jdbc`;
 izraz-graditelji (`eq`, `less`, `greaterEq`, `inList`) su top-level funkcije koje se uvoze
@@ -263,14 +368,15 @@ sa `import org.jetbrains.exposed.v1.core.*`.
 
 ---
 
-## 7. REST API
+## 8. REST API
 
 | Metod | Putanja | Uloga | Opis |
 |---|---|---|---|
-| `GET` | `/health` | — | Provera dostupnosti servera |
-| `GET` | `/api/resources` | svi | Lista resursa; filteri `type`, `location`, `activeOnly` |
-| `GET` | `/api/resources/{id}` | svi | Jedan resurs |
-| `GET` | `/api/resources/{id}/availability?at=` | svi | Dnevna mreža slotova |
+| `GET` | `/health` | javno | Provera dostupnosti servera |
+| `POST` | `/api/auth/login` | javno | Prijava → JWT token i podaci o korisniku |
+| `GET` | `/api/resources` | javno | Lista resursa; filteri `type`, `location`, `activeOnly` |
+| `GET` | `/api/resources/{id}` | javno | Jedan resurs |
+| `GET` | `/api/resources/{id}/availability?at=` | javno | Dnevna mreža slotova |
 | `POST` | `/api/resources` | admin | Novi resurs |
 | `PUT` | `/api/resources/{id}` | admin | Izmena resursa |
 | `POST` | `/api/resources/{id}/deactivate` | admin | Deaktivacija |
@@ -278,37 +384,58 @@ sa `import org.jetbrains.exposed.v1.core.*`.
 | `POST` | `/api/bookings` | korisnik | Nova rezervacija → `201` ili `409` |
 | `GET` | `/api/bookings/mine` | korisnik | Moje rezervacije |
 | `GET` | `/api/bookings` | admin | Globalni pregled; filteri `userId`, `resourceId` |
-| `DELETE` | `/api/bookings/{id}` | korisnik | Otkazivanje |
+| `DELETE` | `/api/bookings/{id}` | korisnik, admin | Otkazivanje — korisnik svoje, administrator bilo koje |
+
+„Korisnik" znači bilo koji prijavljeni korisnik, uključujući administratora. Identitet i
+uloga se čitaju isključivo iz tokena (`Authorization: Bearer ...`), nikad iz tela zahteva.
+Zahtev bez ispravnog tokena Ktor odbija sa `401` pre nego što se ruta izvrši; zahtev sa
+ispravnim tokenom, ali bez uloge `ADMIN`, na administratorskoj ruti dobija `403`.
 
 ---
 
-## 8. Faze izrade
+## 9. Faze izrade
 
-| Faza | Sadržaj | Status |
-|---|---|---|
-| 1 | Vertikalni presek: deljeni DTO → Ktor ruta → baza → Compose lista | **urađeno** |
-| 2 | Autentikacija (JWT + BCrypt), kreiranje rezervacija, mreža slotova u interfejsu | sledeće |
-| 3 | Administratorski ekrani, filteri, globalni pregled | |
-| 4 | Testovi konkurentnosti, merenja, PostgreSQL varijanta | |
+| Faza | Sadržaj | Status | Git oznaka |
+|---|---|---|---|
+| 1 | Vertikalni presek: deljeni DTO → Ktor ruta → baza → Compose lista | **urađeno** | `faza-1` |
+| 2 | Autentikacija (JWT + BCrypt), mreža slotova i rezervacija u aplikaciji, moje rezervacije i otkazivanje, prava vremenska zona | **urađeno** | `faza-2` |
+| 3 | Administratorski ekrani, filteri, globalni pregled | sledeće | |
+| 4 | Testovi konkurentnosti, merenja, PostgreSQL varijanta | | |
+
+Svaka završena faza ima git oznaku, pa se stanje projekta na kraju faze dobija sa
+`git checkout faza-1` ili `git checkout faza-2`. Merenja nisu ostavljena za fazu 4: rade
+se od faze 1, posle svakog većeg koraka (poglavlje 4). Faza 4 ih zaokružuje poređenjem sa
+komparatorom i PostgreSQL varijantom.
 
 ---
 
-## 9. Poznata ograničenja
+## 10. Poznata ograničenja
 
 Navedena svesno, kao predložene granice obima:
 
-- **Vremenska zona** se računa kao fiksni pomeraj od UTC; prelaz na letnje/zimsko računanje
-  vremena nije pokriven. Faza 2 predviđa prelazak na `kotlinx-datetime`.
-- **Autentikacija u fazi 1** svodi se na zaglavlje `X-User-Id` i nije autentikacija. Menja se
-  JWT-om u fazi 2.
-- **Lozinke** su u početnim podacima u čistom tekstu i koriste se isključivo lokalno.
+- **Sesija postoji samo u memoriji aplikacije.** Token se ne čuva na uređaju, pa se prijava
+  traži pri svakom pokretanju. Trajno čuvanje bi otvorilo pitanje zaštite tokena u skladištu
+  uređaja, a token ionako važi 24 sata.
+- **Razvojna JWT tajna stoji u `application.conf`**, da bi se projekat pokrenuo bez ikakvog
+  podešavanja. Repozitorijum je javan, pa ta vrednost nije tajna; u stvarnom okruženju se
+  postavlja promenljiva `JWT_SECRET`, koja je pregazi.
+- **Lozinke demo naloga su javne** u `Seed.kt`. U bazu se upisuje samo njihov BCrypt heš.
+- **Autentikacija donosi zavisnosti koje se ne koriste.** `ktor-server-auth-jwt` tranzitivno
+  uvlači Guava, Jackson i Ktor HTTP klijent (+6,8 MB JAR-a), iako server koristi samo HS256
+  sa lokalnom tajnom. Nisu isključene iz build-a.
+- **Vremenska zona je fiksirana na `Europe/Belgrade`**, i na serveru i na klijentu, namerno:
+  radno vreme 08:00–20:00 je radno vreme kancelarije, ne telefona. Korisnik u drugoj zoni
+  vidi termine po beogradskom vremenu.
 - **Ktor Client** je u `:app:androidApp`, ne u `:core`. Deljeni modul zato pokriva model i
-  pravila, ali još ne i mrežni sloj. Razlog je što `ApiClient` koristi OkHttp engine, koji
-  je platformski; selidba u `:core` traži `expect`/`actual` engine i predviđena je za fazu 2.
+  pravila, ali ne i mrežni sloj. Razlog je što `ApiClient` koristi OkHttp engine, koji je
+  platformski; selidba u `:core` traži `expect`/`actual` engine i ima smisla tek uz drugi
+  klijent.
+- **Android klijent nema automatske testove.** Proveren je ručno, na fizičkom uređaju;
+  pravila koja koristi (`BookingRules`) pokrivena su testovima u `:core`.
 
 ---
 
-## 10. Pokretanje
+## 11. Pokretanje
 
 Potreban je JDK 21; Gradle se preuzima kroz wrapper. Sve komande se pokreću **iz korena
 projekta** — foldera u kome se nalazi `gradlew.bat`.
@@ -321,14 +448,32 @@ projekta** — foldera u kome se nalazi `gradlew.bat`.
 
 ```bash
 # Testovi
-.\gradlew.bat :core:jvmTest     # pravila validacije (BookingRules)
-.\gradlew.bat :server:test      # konkurentnost
+.\gradlew.bat :core:jvmTest     # pravila validacije (BookingRules), 13 testova
+.\gradlew.bat :server:test      # konkurentnost, 3 testa
 ```
 
 Na Linux-u i macOS-u umesto `.\gradlew.bat` ide `./gradlew`.
 
+Pri prvom pokretanju server upisuje početne podatke, uključujući dva demo naloga:
+
+| Uloga | E-pošta | Lozinka |
+|---|---|---|
+| Administrator | `admin@firma.rs` | `admin123` |
+| Korisnik | `pera@firma.rs` | `pera123` |
+
+Ako je server pokretan još u fazi 1, stara baza `server/build/hotdesk.mv.db` sadrži
+lozinke u čistom tekstu, a početni podaci se ne upisuju ponovo preko postojećih — prijava
+tada vraća `401`. Rešenje je obrisati taj fajl pre pokretanja.
+
+JWT tajna se van razvojnog okruženja zadaje promenljivom okruženja, npr. u PowerShell-u:
+
+```bash
+$env:JWT_SECRET = "dugacka-nasumicna-vrednost"
+.\gradlew.bat :server:run
+```
+
 Android modul se pokreće iz Android Studio-a, ili sa priključenim uređajem komandom
-`.\gradlew.bat :app:androidApp:installDebug`.
+`.\gradlew.bat :app:androidApp:installDebug`. Potreban je Android 8.0 ili noviji.
 
 Adresa servera se podešava na **dva** mesta i oba moraju da se slažu:
 
@@ -337,6 +482,7 @@ Adresa servera se podešava na **dva** mesta i oba moraju da se slažu:
 | Emulator | `http://10.0.2.2:8080` | već sadrži `10.0.2.2` |
 | Fizički telefon | `http://<IP-laptopa>:8080` | dodati `<IP-laptopa>` |
 
+`ApiClient.baseUrl` se postavlja u `MainActivity.kt`, pri pokretanju aplikacije.
 IP razvojne mašine se dobija komandom `ipconfig` (IPv4 Address). Oba uređaja moraju biti
 na istoj mreži. Fajl `app/androidApp/src/main/res/xml/network_security_config.xml` postoji
 zato što Android od verzije 9 blokira nekriptovani HTTP — bez upisane adrese aplikacija
