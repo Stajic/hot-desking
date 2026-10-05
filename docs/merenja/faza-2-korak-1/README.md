@@ -1,4 +1,4 @@
-# Merenja — faza 2, korak 1 (autentikacija)
+# Merenja: faza 2, korak 1 (autentikacija)
 
 Merenje posle uvođenja JWT autentikacije i BCrypt lozinki (commit `2026226`),
 u poređenju sa osnovnim merenjem [faze 1](../faza-1/README.md). Cilj je da se
@@ -14,14 +14,14 @@ Datum merenja: 17. septembar 2026.
 | Pitanje | Odgovor |
 |---|---|
 | Da li su javne rute usporile? | **Ne.** Razlike su u okviru varijacije merenja. |
-| Koliko košta provera tokena? | **≈ 2,5 µs** po zahtevu — oko 0,07 % trajanja zaštićenog zahteva. |
-| Koliko košta prijava? | **≈ 426 ms** (medijana, 10 istovremenih korisnika) — namerno, zbog BCrypt-a. |
-| Hladan start | **+514 ms** — hashovanje početnih lozinki. |
+| Koliko košta provera tokena? | **≈ 2,5 µs** po zahtevu, oko 0,07 % trajanja zaštićenog zahteva. |
+| Koliko košta prijava? | **≈ 426 ms** (medijana, 10 istovremenih korisnika); sporost je namerna, zbog BCrypt-a. |
+| Hladan start | **+514 ms**, zbog hashovanja početnih lozinki. |
 | Topao start | **nepromenjen** (−3 ms). |
 | Veličina JAR-a | **+6,8 MB** (20,5 → 27,3 MB), objašnjeno u poglavlju 7. |
 | Neuspelih zahteva | **0** od 281 562. |
 
-Suština: autentikacija je skupa **jednom** — pri prijavi — a gotovo besplatna
+Suština: autentikacija je skupa **jednom**, pri prijavi, a gotovo besplatna
 **pri svakom sledećem zahtevu**. Prijava je oko 100 000 puta skuplja od provere
 tokena, i to je upravo projektovani odnos.
 
@@ -70,10 +70,10 @@ Medijane; hladni start n = 3, topli n = 5.
 
 | | Faza 1 | Faza 2, korak 1 | Razlika |
 |---|---|---|---|
-| Hladan — ukupno | 1 778 ms | 2 292 ms | **+514 ms** |
-| Hladan — Ktor | 731 ms | 1 360 ms | +629 ms |
-| Topao — ukupno | 1 764 ms | 1 761 ms | **−3 ms** |
-| Topao — Ktor | 698 ms | 837 ms | +139 ms |
+| Hladan (ukupno) | 1 778 ms | 2 292 ms | **+514 ms** |
+| Hladan (Ktor) | 731 ms | 1 360 ms | +629 ms |
+| Topao (ukupno) | 1 764 ms | 1 761 ms | **−3 ms** |
+| Topao (Ktor) | 698 ms | 837 ms | +139 ms |
 
 Sirovi podaci: [`startup.csv`](startup.csv)
 
@@ -93,17 +93,17 @@ utvrđeno bez detaljnijeg profilisanja podizanja, i ostaje otvoreno.
 
 Sva vremena u milisekundama.
 
-### Javne rute — poređenje sa fazom 1
+### Javne rute: poređenje sa fazom 1
 
 | Ruta | | Zahteva/s | med | p90 | p95 | p99 | max |
 |---|---|---|---|---|---|---|---|
 | `/api/resources` | faza 1 | 3 250,4 | 2,90 | 3,63 | 3,92 | 4,58 | 11,11 |
 | | **faza 2** | **3 326,0** | **2,85** | **3,52** | **3,78** | **4,37** | **8,10** |
-| `/availability` | faza 1 | 3 161,4 | 2,97 | 3,74 | 4,05 | 5,04 | — |
+| `/availability` | faza 1 | 3 161,4 | 2,97 | 3,74 | 4,05 | 5,04 | 64,46 |
 | | **faza 2** | **3 311,9** | **2,82** | **3,53** | **3,83** | **4,87** | **32,30** |
 
 **Zapažanje.** Propusnost javnih ruta je za 2,3 %, odnosno 4,8 % viša nego u
-fazi 1. **To nije poboljšanje koje je doneo kod** — javne rute ne prolaze kroz
+fazi 1. **To nije poboljšanje koje je doneo kod**: javne rute ne prolaze kroz
 autentikaciju, a mašina je ovog puta bila rasterećenija (poglavlje 2). Ispravan
 zaključak je da uvođenje `Authentication` plugina **nema merljiv trošak** na
 rutama koje ga ne koriste.
@@ -135,7 +135,7 @@ zagrevanja, pet rundi po 300 000 provera odnosno 100 000 izdavanja.
 Sirovi podaci: [`jwt-micro.txt`](jwt-micro.txt)
 
 **Tumačenje.** Zaštićena ruta `mine` ima medijanu 3,40 ms, a javna `resources`
-2,85 ms — razlika od 0,55 ms. Provera tokena od toga čini **oko 0,5 %**. Ostatak
+2,85 ms, što je razlika od 0,55 ms. Provera tokena od toga čini **oko 0,5 %**. Ostatak
 otpada na drugačiji upit: `mine` spaja tri tabele (`bookings`, `resources`,
 `users`) da bi vratio denormalizovana imena, dok `resources` čita jednu.
 
@@ -148,13 +148,13 @@ Odnos cene prijave i cene provere:
 | **Odnos** | **≈ 100 000 : 1** |
 
 To je projektovani kompromis: skupa operacija se izvodi jednom, pri prijavi, i
-njen rezultat — token — važi 24 sata. Svaki sledeći zahtev plaća samo proveru
+njen rezultat (token) važi 24 sata. Svaki sledeći zahtev plaća samo proveru
 potpisa.
 
 **Ograda.** Ovo nije merenje alatom za mikrobenčmarke (JMH), nego petlja u
 `jshell`-u uz zagrevanje. Broj treba shvatiti kao red veličine, ne kao preciznu
-vrednost. Za zaključak da je provera tokena zanemariva — tri reda veličine ispod
-trajanja zahteva — ta preciznost je dovoljna.
+vrednost. Za zaključak da je provera tokena zanemariva (tri reda veličine ispod
+trajanja zahteva) ta preciznost je dovoljna.
 
 ---
 
@@ -173,14 +173,14 @@ serverom; i moguće termalno usporavanje laptopa pri 30 s punog opterećenja.
 
 **Da li je 23 prijave/s dovoljno?** Kao ilustracija, a ne izmereni zahtev: kada
 bi se svih 1 000 zaposlenih u preduzeću prijavilo u istih pet minuta, to je oko
-3,3 prijave/s — sedam puta manje od onoga što ovaj laptop obrađuje. Pošto token
+3,3 prijave/s, sedam puta manje od onoga što ovaj laptop obrađuje. Pošto token
 važi 24 sata, stvarna učestalost prijava je daleko manja od toga.
 
 ---
 
 ## 8. Memorijski otisak
 
-| Faza | RSS | Privatna | Gomila — zauzeto | Gomila — rezervisano |
+| Faza | RSS | Privatna | Zauzeta gomila | Rezervisana gomila |
 |---|---|---|---|---|
 | Posle starta (mirovanje) | 161,4 MB | 213,8 MB | 19,5 MB | 58 MB |
 | Posle zagrevanja | 224,8 MB | 278,7 MB | 30,7 MB | 84 MB |
@@ -201,7 +201,7 @@ Poređenje sa fazom 1:
 | RSS posle GC-a | 190,4 MB | 258,6 MB |
 
 **Zapažanje.** Ono što aplikacija zaista drži na gomili posle sakupljanja smeća
-poraslo je za **1,9 MB** — to je stvarni memorijski trošak autentikacije.
+poraslo je za **1,9 MB**. To je stvarni memorijski trošak autentikacije.
 
 RSS posle GC-a jeste veći za 68 MB, ali **te dve vrednosti nisu direktno
 uporedive**: u ovom merenju pre `GC.run` su izvršene i rute `mine` i `login`,
@@ -257,7 +257,7 @@ učitava.
 
 Sva ograničenja iz [faze 1](../faza-1/README.md#7-ograničenja) i dalje važe. Uz njih:
 
-- **Razlika između `mine` i `resources` nije čista cena autentikacije** — rute
+- **Razlika između `mine` i `resources` nije čista cena autentikacije**, jer rute
   izvršavaju različite upite. Zato postoji izolovano merenje u poglavlju 6.
 - **Izolovano merenje tokena nije JMH.** Pouzdano je kao red veličine.
 - **Uzrok ograničene paralelnosti prijave nije utvrđen** (poglavlje 7).

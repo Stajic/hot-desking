@@ -1,4 +1,4 @@
-# Merenja — kraj faze 2
+# Merenja: kraj faze 2
 
 Treća tačka u nizu merenja, nad stanjem posle koraka 4 (commit `60daee4`): prijava,
 mreža slotova i rezervacija u aplikaciji, moje rezervacije i prava vremenska zona
@@ -13,7 +13,7 @@ Datum merenja: 5. oktobar 2026.
 
 **Između merenja posle autentikacije i kraja faze 2 nema merljive promene na
 serveru.** Koraci 2, 3a i 3b bili su isključivo klijentski, a jedina serverska
-izmena — `BookingRules` preko `kotlinx-datetime` — košta oko 0,1 µs po pozivu, što
+izmena (`BookingRules` preko `kotlinx-datetime`) košta oko 0,1 µs po pozivu, što
 je četiri reda veličine ispod trajanja jednog zahteva.
 
 | | Faza 1 | Posle autentikacije | **Kraj faze 2** |
@@ -22,12 +22,12 @@ je četiri reda veličine ispod trajanja jednog zahteva.
 | Topao start | 1 764 ms | 1 761 ms | **1 770 ms** |
 | RSS u mirovanju | 172,2 MB | 161,4 MB | **154,3 MB** |
 | Gomila stvarno zauzeta posle GC-a | 15,1 MB | 17,0 MB | **17,0 MB** |
-| `GET /api/resources` — zahteva/s | 3 250 | 3 326 | **3 305** |
-| `GET /api/resources` — medijana / p99 | 2,90 / 4,58 ms | 2,85 / 4,37 ms | **2,84 / 4,49 ms** |
-| `GET /availability` — zahteva/s | 3 161 | 3 312 | **3 317** |
-| `GET /availability` — medijana / p99 | 2,97 / 5,04 ms | 2,82 / 4,87 ms | **2,79 / 4,86 ms** |
-| `GET /api/bookings/mine` — medijana / p99 | — | 3,40 / 6,49 ms | **3,29 / 6,18 ms** |
-| `POST /api/auth/login` — zahteva/s / medijana | — | 23,1 / 427 ms | **22,6 / 440 ms** |
+| `GET /api/resources`: zahteva/s | 3 250 | 3 326 | **3 305** |
+| `GET /api/resources`: medijana / p99 | 2,90 / 4,58 ms | 2,85 / 4,37 ms | **2,84 / 4,49 ms** |
+| `GET /availability`: zahteva/s | 3 161 | 3 312 | **3 317** |
+| `GET /availability`: medijana / p99 | 2,97 / 5,04 ms | 2,82 / 4,87 ms | **2,79 / 4,86 ms** |
+| `GET /api/bookings/mine`: medijana / p99 | ruta nije postojala | 3,40 / 6,49 ms | **3,29 / 6,18 ms** |
+| `POST /api/auth/login`: zahteva/s / medijana | ruta nije postojala | 23,1 / 427 ms | **22,6 / 440 ms** |
 | Samostalni JAR | 20,5 MB | 27,3 MB | **27,3 MB** (+20 B) |
 | Neuspelih zahteva | 0 / 192 365 | 0 / 281 562 | **0 / 283 655** |
 
@@ -60,14 +60,14 @@ Medijane; hladan n = 3, topao n = 5.
 
 | | Faza 1 | Posle autentikacije | Kraj faze 2 |
 |---|---|---|---|
-| Hladan — ukupno | 1 778 ms | 2 292 ms | 2 316 ms |
-| Hladan — Ktor | 731 ms | 1 360 ms | 1 346 ms |
-| Topao — ukupno | 1 764 ms | 1 761 ms | 1 770 ms |
-| Topao — Ktor | 698 ms | 837 ms | 830 ms |
+| Hladan (ukupno) | 1 778 ms | 2 292 ms | 2 316 ms |
+| Hladan (Ktor) | 731 ms | 1 360 ms | 1 346 ms |
+| Topao (ukupno) | 1 764 ms | 1 761 ms | 1 770 ms |
+| Topao (Ktor) | 698 ms | 837 ms | 830 ms |
 
 Sirovi podaci: [`startup.csv`](startup.csv)
 
-Razlike u odnosu na merenje posle autentikacije su 24 ms i 9 ms — u okviru
+Razlike u odnosu na merenje posle autentikacije su 24 ms i 9 ms, u okviru
 varijacije između pokretanja.
 
 ---
@@ -93,8 +93,8 @@ serveru, istom pripremom i sa uključenim zapisom sakupljača smeća:
 | Provera | Rezultat |
 |---|---|
 | Prvi zahtev na `/availability` posle starta (hladna putanja) | 28,6 ms |
-| Ponovljen prolaz 1 — max | 18,75 ms |
-| Ponovljen prolaz 2 — max | 73,56 ms |
+| Ponovljen prolaz 1 (max) | 18,75 ms |
+| Ponovljen prolaz 2 (max) | 73,56 ms |
 | Najduža GC pauza (od 303 zabeležene) | 9,33 ms |
 
 Skok se nije ponovio, hladna putanja nove biblioteke ga ne objašnjava, a GC pauze
@@ -121,7 +121,7 @@ Sirovi podaci: [`rules-micro.csv`](rules-micro.csv)
 **Tumačenje.** Relativno je nova verzija dva reda veličine sporija: stara je čista
 celobrojna aritmetika, nova pretvara trenutak u lokalno vreme preko pravila
 vremenske zone. Apsolutno, to je oko **0,1 µs po pozivu**, dok jedan zahtev traje
-oko 2 800 µs — udeo od približno **0,004 %**. Ruta `availability` poziva `dayStart`
+oko 2 800 µs, što je udeo od približno **0,004 %**. Ruta `availability` poziva `dayStart`
 jednom po zahtevu, i njena medijana je ostala 2,79 ms naspram 2,82 ms.
 
 Ovo je primer zašto se relativni rezultati mikrobenčmarka ne prenose direktno na
@@ -139,7 +139,7 @@ sistem: „100 puta sporije" i „nemerljivo na sistemu" su ovde oba tačna.
 
 ## 6. Memorijski otisak
 
-| Faza | RSS | Privatna | Gomila — zauzeto | Gomila — rezervisano |
+| Faza | RSS | Privatna | Zauzeta gomila | Rezervisana gomila |
 |---|---|---|---|---|
 | Posle starta (mirovanje) | 154,3 MB | 205,4 MB | 20,4 MB | 50 MB |
 | Posle zagrevanja | 263,7 MB | 325,2 MB | 47,2 MB | 136 MB |
@@ -151,7 +151,7 @@ sistem: „100 puta sporije" i „nemerljivo na sistemu" su ovde oba tačna.
 
 Sirovi podaci: [`memory.csv`](memory.csv)
 
-Posle sakupljanja smeća aplikacija drži **17,0 MB** — isto kao posle
+Posle sakupljanja smeća aplikacija drži **17,0 MB**, isto kao posle
 autentikacije. `kotlinx-datetime` nije povećao stvarno zauzetu memoriju.
 
 ---
@@ -159,8 +159,8 @@ autentikacije. `kotlinx-datetime` nije povećao stvarno zauzetu memoriju.
 ## 7. Veličina JAR-a i jedna zavisnost koja je već bila tu
 
 Samostalni JAR je porastao za **20 bajtova** (28 659 250 → 28 659 270), iako je
-dodata cela biblioteka. Razlog: `kotlinx-datetime` je u JAR-u bio i pre koraka 4 —
-448 klasa, koje je tranzitivno doneo **Exposed** (`exposed-core`), u varijanti
+dodata cela biblioteka. Razlog: `kotlinx-datetime` je u JAR-u bio i pre koraka 4
+(448 klasa), jer ga je tranzitivno doneo **Exposed** (`exposed-core`), u varijanti
 `0.7.1-0.6.x-compat`. Eksplicitna zavisnost `0.8.0` samo je zamenila tu verziju.
 
 To je otvorilo pitanje sukoba: varijanta `-0.6.x-compat` sadrži staru klasu
@@ -183,7 +183,7 @@ Sva ograničenja iz [faze 1](../faza-1/README.md#7-ograničenja) i
 [merenja posle autentikacije](../faza-2-korak-1/README.md#10-ograničenja) i dalje
 važe. Uz njih:
 
-- **Uzrok izolovanog zahteva od 820 ms nije utvrđen** — samo je isključeno da ga
+- **Uzrok izolovanog zahteva od 820 ms nije utvrđen.** Isključeno je samo da ga
   izaziva nova biblioteka ili sakupljač smeća.
 - **Izolovano merenje `BookingRules` nije JMH**, a stara vrednost za `validate` je
   verovatno potcenjena (poglavlje 5).
