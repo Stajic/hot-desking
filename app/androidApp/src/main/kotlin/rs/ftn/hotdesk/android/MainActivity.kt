@@ -10,7 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import rs.ftn.hotdesk.android.data.ApiClient
 import rs.ftn.hotdesk.android.data.Session
 import rs.ftn.hotdesk.android.ui.LoginScreen
-import rs.ftn.hotdesk.android.ui.ResourceListScreen
+import rs.ftn.hotdesk.android.ui.AppNavigation
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,9 +24,9 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface {
                     // Jedini uslov za prelazak sa prijave na listu je postojanje
-                    // sesije. Za dva ekrana biblioteka za navigaciju bi bila visak.
+                    // sesije; dalje kretanje kroz ekrane vodi AppNavigation.
                     val korisnik by Session.user.collectAsStateWithLifecycle()
-                    if (korisnik == null) LoginScreen() else ResourceListScreen()
+                    if (korisnik == null) LoginScreen() else AppNavigation()
                 }
             }
         }

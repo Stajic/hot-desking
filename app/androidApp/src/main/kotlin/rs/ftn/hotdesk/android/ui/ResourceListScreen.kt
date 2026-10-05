@@ -28,14 +28,17 @@ import rs.ftn.hotdesk.shared.model.ResourceDto
 import rs.ftn.hotdesk.shared.model.ResourceType
 
 /**
- * Faza 1 prikazuje samo listu resursa. To je dovoljno da se dokaze da podaci
- * putuju kroz sva tri modula: baza -> Ktor server -> :shared DTO -> Ktor client ->
- * ViewModel -> Compose.
+ * Lista resursa. U fazi 1 dokazuje da podaci putuju kroz sva tri modula:
+ * baza -> Ktor server -> :shared DTO -> Ktor client -> ViewModel -> Compose.
  *
- * FAZA 2: ekran dostupnosti (mreza slotova), ekran "Moje rezervacije", prijava.
+ * Od faze 2 dodir na karticu otvara dnevnu mrezu slotova ([AvailabilityScreen]).
+ * Preostaje ekran "Moje rezervacije".
  */
 @Composable
-fun ResourceListScreen(vm: ResourceListViewModel = viewModel()) {
+fun ResourceListScreen(
+    vm: ResourceListViewModel = viewModel(),
+    onResourceClick: (ResourceDto) -> Unit = {}
+) {
     val state by vm.state.collectAsStateWithLifecycle()
 
     val korisnik by Session.user.collectAsStateWithLifecycle()
@@ -100,15 +103,15 @@ fun ResourceListScreen(vm: ResourceListViewModel = viewModel()) {
             state.resources.isEmpty() -> Text("Nema resursa koji odgovaraju filteru.")
 
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.resources, key = { it.id }) { ResourceCard(it) }
+                items(state.resources, key = { it.id }) { ResourceCard(it) { onResourceClick(it) } }
             }
         }
     }
 }
 
 @Composable
-private fun ResourceCard(resource: ResourceDto) {
-    Card(Modifier.fillMaxWidth()) {
+private fun ResourceCard(resource: ResourceDto, onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(resource.name, style = MaterialTheme.typography.titleMedium)
             Text(

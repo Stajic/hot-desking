@@ -11,6 +11,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
@@ -19,6 +20,7 @@ import kotlinx.serialization.json.Json
 import rs.ftn.hotdesk.shared.model.AvailabilityDto
 import rs.ftn.hotdesk.shared.model.BookingDto
 import rs.ftn.hotdesk.shared.model.CreateBookingRequest
+import rs.ftn.hotdesk.shared.model.ErrorResponse
 import rs.ftn.hotdesk.shared.model.LoginRequest
 import rs.ftn.hotdesk.shared.model.LoginResponse
 import rs.ftn.hotdesk.shared.model.ResourceDto
@@ -119,9 +121,31 @@ object ApiClient {
         }
         return when (response.status) {
             HttpStatusCode.Created -> BookingOutcome.Ok(response.body())
-            // 409 dolazi od jedinstvenog indeksa u bazi - neko je bio brzi.
-            HttpStatusCode.Conflict -> BookingOutcome.Taken
-            else -> BookingOutcome.Rejected("Zahtev nije prihvacen (${response.status.value}).")
+
+            // Server vraca 409 u dva slucaja, pa se razlikuju po kodu greske:
+            //  - SLOT_TAKEN: jedinstveni indeks u bazi je odbio upis - neko je bio brzi;
+            //  - INACTIVE: resurs je u medjuvremenu deaktiviran.
+            HttpStatusCode.Conflict -> {
+                val greska = errorOf(response)
+                if (greska?.code == "SLOT_TAKEN") BookingOutcome.Taken
+                else BookingOutcome.Rejected(greska?.message ?: "Termin nije moguce rezervisati.")
+            }
+
+            // Token je istekao (vazi 24 h) ili je nevazeci: korisnik se vraca na prijavu.
+            HttpStatusCode.Unauthorized -> {
+                Session.end()
+                BookingOutcome.Rejected("Sesija je istekla. Prijavite se ponovo.")
+            }
+
+            // 400 nosi razlog iz BookingRules sa servera - isti tekst koji bi dala
+            // i provera na klijentu.
+            else -> BookingOutcome.Rejected(
+                errorOf(response)?.message ?: "Zahtev nije prihvacen (${response.status.value})."
+            )
         }
     }
+
+    /** Telo odgovora sa greskom, ako ga server poslao u ocekivanom obliku. */
+    private suspend fun errorOf(response: HttpResponse): ErrorResponse? =
+        runCatching { response.body<ErrorResponse>() }.getOrNull()
 }
