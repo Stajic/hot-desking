@@ -1,7 +1,7 @@
 [versions]
 agp = "9.0.1"
 android-compileSdk = "36"
-android-minSdk = "24"
+android-minSdk = "26"
 android-targetSdk = "36"
 androidx-activity = "1.13.0"
 androidx-appcompat = "1.8.0"
@@ -22,6 +22,7 @@ h2 = "2.3.232"
 kotlinxSerialization = "1.11.0"
 kotlinxCoroutines = "1.11.0"
 bcrypt = "0.10.2"
+kotlinxDatetime = "0.8.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -55,6 +56,7 @@ exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "e
 h2 = { module = "com.h2database:h2", version.ref = "h2" }
 kotlinx-serializationJson = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 
 # --- dodato za :app:androidApp (hot-desking) ---
 ktor-clientCore = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }

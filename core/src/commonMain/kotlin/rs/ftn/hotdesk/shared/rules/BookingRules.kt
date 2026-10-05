@@ -1,6 +1,12 @@
 package rs.ftn.hotdesk.shared.rules
 
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 import rs.ftn.hotdesk.shared.model.ResourceType
+import kotlin.time.Instant
 
 /**
  * Pravila rezervacije. Ovo je srce :shared modula.
@@ -11,11 +17,13 @@ import rs.ftn.hotdesk.shared.model.ResourceType
  *
  * Nijedna metoda ne koristi `java.*` niti bilo koju platformsku biblioteku. To je
  * namerno: ako se u :shared doda non-JVM target (js/wasmJs), kompajler ce sam
- * proveravati da ovaj fajl ostaje platformski nezavisan.
+ * proveravati da ovaj fajl ostaje platformski nezavisan. Rad sa vremenskom zonom
+ * zato ide kroz kotlinx-datetime, koji je i sam multiplatformski.
  *
- * OGRANICENJE (svesno, PoC faza): vremenska zona se racuna kao fiksni ofset od UTC.
- * DST prelaz (poslednja nedelja marta / oktobra) time nije pokriven. Faza 2 predviđa
- * zamenu bibliotekom kotlinx-datetime, cime se resava i to.
+ * Od faze 2 radno vreme se racuna po stvarnoj vremenskoj zoni zgrade ([ZONE]),
+ * ukljucujuci prelaz na letnje i zimsko racunanje vremena. Do tada je koriscen
+ * fiksni pomeraj od UTC+2, zbog kog bi posle prelaska na zimsko vreme ceo radni
+ * dan bio pomeren za sat.
  */
 object BookingRules {
 
@@ -31,10 +39,12 @@ object BookingRules {
 
     const val SLOT_MILLIS: Long = SLOT_MINUTES * 60_000L
     private const val HOUR_MILLIS: Long = 3_600_000L
-    private const val DAY_MILLIS: Long = 24 * HOUR_MILLIS
 
-    /** Srbija, letnje racunanje vremena (UTC+2). Vidi ogranicenje u opisu klase. */
-    const val DEFAULT_ZONE_OFFSET_MILLIS: Long = 2 * HOUR_MILLIS
+    /**
+     * Vremenska zona zgrade. Radno vreme 08-20 vazi po lokalnom satu, i leti i zimi,
+     * nezavisno od toga u kojoj se zoni nalazi uredjaj ili server.
+     */
+    val ZONE: TimeZone = TimeZone.of("Europe/Belgrade")
 
     sealed interface Result {
         data object Valid : Result
@@ -51,7 +61,7 @@ object BookingRules {
         startTime: Long,
         endTime: Long,
         now: Long,
-        zoneOffsetMillis: Long = DEFAULT_ZONE_OFFSET_MILLIS
+        zone: TimeZone = ZONE
     ): Result {
         if (endTime <= startTime) {
             return Result.Invalid("RANGE", "Kraj rezervacije mora biti posle pocetka.")
@@ -59,6 +69,8 @@ object BookingRules {
         if (startTime < now) {
             return Result.Invalid("PAST", "Nije moguce rezervisati termin u proslosti.")
         }
+        // Poravnanje se proverava nad epoch vremenom. To je ispravno jer [ZONE] ima
+        // pomeraj od celih sati (+1 / +2), pa je granica od 30 min ista u UTC i lokalno.
         if (startTime % SLOT_MILLIS != 0L || endTime % SLOT_MILLIS != 0L) {
             return Result.Invalid(
                 "ALIGNMENT",
@@ -74,17 +86,16 @@ object BookingRules {
             )
         }
 
-        val localStart = startTime + zoneOffsetMillis
-        val localEnd = endTime + zoneOffsetMillis
+        val localStart = local(startTime, zone)
+        // (endTime - 1) jer je kraj ekskluzivan: termin do tacno ponoci je jos uvek "danas",
+        // a termin do tacno 20:00 jos uvek u radnom vremenu.
+        val localLast = local(endTime - 1, zone)
 
-        // (localEnd - 1) jer je kraj ekskluzivan: termin do tacno ponoci je jos uvek "danas".
-        if (localStart / DAY_MILLIS != (localEnd - 1) / DAY_MILLIS) {
+        if (localStart.date != localLast.date) {
             return Result.Invalid("CROSSES_DAY", "Rezervacija ne sme da prelazi u naredni dan.")
         }
 
-        val startOfDay = localStart % DAY_MILLIS
-        val endOfDay = ((localEnd - 1) % DAY_MILLIS) + 1
-        if (startOfDay < DAY_START_HOUR * HOUR_MILLIS || endOfDay > DAY_END_HOUR * HOUR_MILLIS) {
+        if (localStart.time < LocalTime(DAY_START_HOUR, 0) || localLast.time >= LocalTime(DAY_END_HOUR, 0)) {
             return Result.Invalid(
                 "OUTSIDE_HOURS",
                 "Radno vreme je od $DAY_START_HOUR do $DAY_END_HOUR casova."
@@ -106,14 +117,20 @@ object BookingRules {
             .takeWhile { it < endTime }
             .toList()
 
-    /** Pocetak radnog dana (lokalno) za dati trenutak, kao epoch millis. */
+    /**
+     * Pocetak radnog dana (08:00 lokalno) za dati trenutak, kao epoch millis.
+     *
+     * Na dan prelaska na letnje ili zimsko vreme radni dan i dalje ima tacno
+     * [slotsPerDay] slotova: sat se pomera u 02:00 / 03:00, van radnog vremena.
+     */
     fun dayStart(
         anyTimeInDay: Long,
-        zoneOffsetMillis: Long = DEFAULT_ZONE_OFFSET_MILLIS
+        zone: TimeZone = ZONE
     ): Long {
-        val local = anyTimeInDay + zoneOffsetMillis
-        val midnightLocal = (local / DAY_MILLIS) * DAY_MILLIS
-        return midnightLocal + DAY_START_HOUR * HOUR_MILLIS - zoneOffsetMillis
+        val datum = local(anyTimeInDay, zone).date
+        return LocalDateTime(datum, LocalTime(DAY_START_HOUR, 0))
+            .toInstant(zone)
+            .toEpochMilliseconds()
     }
 
     /** Broj slotova u radnom danu. */
@@ -128,4 +145,7 @@ object BookingRules {
         ResourceType.DESK -> MAX_SLOTS_PER_BOOKING  // sto se uzima za ceo radni dan
         ResourceType.MEETING_ROOM -> 2              // sala podrazumevano jedan sat
     }
+
+    private fun local(epochMillis: Long, zone: TimeZone): LocalDateTime =
+        Instant.fromEpochMilliseconds(epochMillis).toLocalDateTime(zone)
 }

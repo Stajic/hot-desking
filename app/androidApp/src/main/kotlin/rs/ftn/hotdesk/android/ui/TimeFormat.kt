@@ -1,41 +1,46 @@
 package rs.ftn.hotdesk.android.ui
 
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.number
+import kotlinx.datetime.toLocalDateTime
 import rs.ftn.hotdesk.shared.rules.BookingRules
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.SimpleTimeZone
+import kotlin.time.Instant
 
 /**
  * Jedino mesto na klijentu koje pretvara trenutak (epoch millis) u vreme za prikaz.
  *
- * Koristi ISTI fiksni pomeraj od UTC kao BookingRules iz modula :core, da bi klijent
- * prikazivao tacno one slotove koje server racuna. Posledica je poznato ogranicenje
- * iz README-a: prelaz na zimsko racunanje vremena nije pokriven, pa posle njega
- * prikaz odstupa za sat od zidnog sata.
+ * Koristi istu vremensku zonu kao BookingRules iz modula :core ([BookingRules.ZONE]),
+ * pa klijent prikazuje tacno one slotove koje server racuna - i leti i zimi, i na
+ * dan prelaska na letnje ili zimsko vreme.
  *
- * Prelazak na kotlinx-datetime (korak 4) na klijentu menja samo ovaj fajl.
- *
- * java.time se namerno ne koristi: minSdk je 24, a java.time je na Androidu
- * dostupan tek od API 26 bez dodatnog desugaring-a.
+ * kotlinx-datetime nema lokalizovano formatiranje, pa su nazivi dana napisani ovde.
+ * Zauzvrat klijent vise ne koristi ni java.text ni java.util.
  */
 object TimeFormat {
 
-    private const val MINUTE = 60_000L
-    private const val DAY = 86_400_000L
-
-    private val zone = SimpleTimeZone(BookingRules.DEFAULT_ZONE_OFFSET_MILLIS.toInt(), "BookingRules")
+    private val dani = mapOf(
+        DayOfWeek.MONDAY to "ponedeljak",
+        DayOfWeek.TUESDAY to "utorak",
+        DayOfWeek.WEDNESDAY to "sreda",
+        DayOfWeek.THURSDAY to "cetvrtak",
+        DayOfWeek.FRIDAY to "petak",
+        DayOfWeek.SATURDAY to "subota",
+        DayOfWeek.SUNDAY to "nedelja"
+    )
 
     /** "09:30" */
     fun hhmm(epochMillis: Long): String {
-        val local = epochMillis + BookingRules.DEFAULT_ZONE_OFFSET_MILLIS
-        val minutesOfDay = ((local % DAY + DAY) % DAY) / MINUTE
-        return "%02d:%02d".format(minutesOfDay / 60, minutesOfDay % 60)
+        val t = local(epochMillis).time
+        return "${t.hour.toString().padStart(2, '0')}:${t.minute.toString().padStart(2, '0')}"
     }
 
     /** "ponedeljak, 5. 10. 2026." */
-    fun day(epochMillis: Long): String =
-        SimpleDateFormat("EEEE, d. M. yyyy.", Locale.forLanguageTag("sr-Latn-RS"))
-            .apply { timeZone = zone }
-            .format(Date(epochMillis))
+    fun day(epochMillis: Long): String {
+        val d = local(epochMillis).date
+        return "${dani.getValue(d.dayOfWeek)}, ${d.day}. ${d.month.number}. ${d.year}."
+    }
+
+    private fun local(epochMillis: Long): LocalDateTime =
+        Instant.fromEpochMilliseconds(epochMillis).toLocalDateTime(BookingRules.ZONE)
 }

@@ -28,6 +28,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.serializationJson)
+            // api, ne implementation: TimeZone je deo javnog potpisa BookingRules
+            api(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
