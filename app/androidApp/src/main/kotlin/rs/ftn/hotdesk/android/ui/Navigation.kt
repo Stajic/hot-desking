@@ -12,6 +12,7 @@ import rs.ftn.hotdesk.shared.model.ResourceDto
 sealed interface Screen {
     data object Resources : Screen
     data class Availability(val resource: ResourceDto) : Screen
+    data object MyBookings : Screen
 }
 
 /**
@@ -33,9 +34,15 @@ fun AppNavigation() {
 
     when (val s = screen) {
         Screen.Resources ->
-            ResourceListScreen(onResourceClick = { screen = Screen.Availability(it) })
+            ResourceListScreen(
+                onResourceClick = { screen = Screen.Availability(it) },
+                onMyBookingsClick = { screen = Screen.MyBookings }
+            )
 
         is Screen.Availability ->
             AvailabilityScreen(resource = s.resource, onBack = { screen = Screen.Resources })
+
+        Screen.MyBookings ->
+            MyBookingsScreen(onBack = { screen = Screen.Resources })
     }
 }

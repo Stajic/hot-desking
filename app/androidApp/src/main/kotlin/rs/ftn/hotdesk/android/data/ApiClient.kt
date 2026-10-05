@@ -7,6 +7,7 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
@@ -103,10 +104,40 @@ object ApiClient {
             parameter("at", at)
         }.body()
 
-    suspend fun myBookings(): List<BookingDto> =
-        client.get("$baseUrl/api/bookings/mine") {
+    /** Token je istekao ili je nevazeci; [Session] je vec zatvorena kad se ovo baci. */
+    class SessionExpiredException : Exception("Sesija je istekla.")
+
+    suspend fun myBookings(): List<BookingDto> {
+        val response = client.get("$baseUrl/api/bookings/mine") {
             token?.let { bearerAuth(it) }
-        }.body()
+        }
+        if (response.status == HttpStatusCode.Unauthorized) {
+            Session.end()
+            throw SessionExpiredException()
+        }
+        return response.body()
+    }
+
+    /**
+     * Otkazivanje. Server brise slotove (termin se oslobadja), a zaglavlje ostaje
+     * sa statusom CANCELLED kao istorija.
+     *
+     * @return true ako je rezervacija otkazana; false ako ne postoji ili nije
+     *         korisnikova - server namerno ne razlikuje ta dva slucaja.
+     */
+    suspend fun cancel(bookingId: String): Boolean {
+        val response = client.delete("$baseUrl/api/bookings/$bookingId") {
+            token?.let { bearerAuth(it) }
+        }
+        return when (response.status) {
+            HttpStatusCode.NoContent -> true
+            HttpStatusCode.Unauthorized -> {
+                Session.end()
+                throw SessionExpiredException()
+            }
+            else -> false
+        }
+    }
 
     sealed interface BookingOutcome {
         data class Ok(val booking: BookingDto) : BookingOutcome

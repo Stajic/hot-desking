@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -31,13 +32,14 @@ import rs.ftn.hotdesk.shared.model.ResourceType
  * Lista resursa. U fazi 1 dokazuje da podaci putuju kroz sva tri modula:
  * baza -> Ktor server -> :shared DTO -> Ktor client -> ViewModel -> Compose.
  *
- * Od faze 2 dodir na karticu otvara dnevnu mrezu slotova ([AvailabilityScreen]).
- * Preostaje ekran "Moje rezervacije".
+ * Od faze 2 dodir na karticu otvara dnevnu mrezu slotova ([AvailabilityScreen]),
+ * a dugme u zaglavlju pregled sopstvenih rezervacija ([MyBookingsScreen]).
  */
 @Composable
 fun ResourceListScreen(
     vm: ResourceListViewModel = viewModel(),
-    onResourceClick: (ResourceDto) -> Unit = {}
+    onResourceClick: (ResourceDto) -> Unit = {},
+    onMyBookingsClick: () -> Unit = {}
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
 
@@ -54,8 +56,12 @@ fun ResourceListScreen(
         ) {
             Text(
                 korisnik?.let { "${it.name} · ${it.role}" }.orEmpty(),
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
+            TextButton(onClick = onMyBookingsClick) { Text("Moje rezervacije") }
             TextButton(onClick = { Session.end() }) { Text("Odjava") }
         }
 
