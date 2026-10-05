@@ -87,7 +87,7 @@ Odgovor servera na `GET /api/resources`, skraćen na tri resursa:
 ```
 
 Pun odgovor sadrži sedam resursa. `Seed.kt` upisuje osam, ali je `Sto B-02` neaktivan pa ga
-podrazumevani filter `activeOnly=true` izostavlja — `GET /api/resources?activeOnly=false`
+podrazumevani filter `activeOnly=true` izostavlja; `GET /api/resources?activeOnly=false`
 vraća i njega.
 
 ---
@@ -136,7 +136,7 @@ Prednosti:
 - radi identično na H2 i na PostgreSQL-u
 - delimično preklapanje (09:00–10:00 naspram 09:30–10:30) pada isto kao potpuno
 - otkazivanje briše redove iz `booking_slots` i oslobađa termin, dok zaglavlje ostaje
-  kao istorija — bez potrebe za parcijalnim indeksima, koje H2 ne podržava
+  kao istorija, bez potrebe za parcijalnim indeksima, koje H2 ne podržava
 
 ### Merljiv rezultat
 
@@ -154,14 +154,14 @@ Paralelnih zahteva: 50 | prihvaceno: 1 | odbijeno (409): 49
 
 Uz taj test prolaze i `delimicno_preklapanje_takodje_pada` (09:00–10:00 naspram 09:30–10:30,
 dele tačno jedan slot) i `otkazana_rezervacija_oslobadja_termin`. Ukupno tri testa u `:server`
-i trinaest testova `BookingRules` u `:core` — svi prolaze.
+i trinaest testova `BookingRules` u `:core`. Svi prolaze.
 
 ### Iz ugla korisnika
 
 <img src="docs/konflikt-409.png" alt="Konflikt pri rezervaciji" width="240" align="right">
 
 Aplikacija prikazuje mrežu slotova onakvu kakva je bila u trenutku učitavanja. Između
-učitavanja i slanja drugi korisnik može da zauzme isti termin — upravo situacija iz
+učitavanja i slanja drugi korisnik može da zauzme isti termin, što je upravo situacija iz
 odeljka „Problem".
 
 Provereno na uređaju: na telefonu je izabran termin 14:00–15:00, a sa drugog klijenta
@@ -170,8 +170,8 @@ dobija `409` sa kodom `SLOT_TAKEN`; aplikacija prikazuje poruku i osvežava mre�
 
 Dva termina dele samo jedan slot, a odbijen je **ceo** zahtev: 14:00 je ostao slobodan,
 i u bazi nije ostalo zaglavlje odbijene rezervacije. Izuzetak se propušta izvan
-transakcije, pa se poništava i već upisano zaglavlje — što je u `BookingService.kt`
-navedeno kao najlakše mesto za grešku u celom rešenju.
+transakcije, pa se poništava i već upisano zaglavlje. Komentar u `BookingService.kt` to
+navodi kao najlakše mesto za grešku u celom rešenju.
 
 <br clear="right">
 
@@ -195,10 +195,10 @@ zagrevanje koje se odbacuje. Svaki izveštaj beleži okruženje, metodologiju i 
 | Topao start (do prvog odgovora) | 1 764 ms | 1 761 ms | 1 770 ms |
 | Hladan start (prazna baza) | 1 778 ms | 2 292 ms | 2 316 ms |
 | Memorija stvarno zauzeta posle GC-a | 15,1 MB | 17,0 MB | 17,0 MB |
-| `GET /api/resources` — zahteva/s, medijana | 3 250, 2,90 ms | 3 326, 2,85 ms | 3 305, 2,84 ms |
-| `GET /availability` — zahteva/s, medijana | 3 161, 2,97 ms | 3 312, 2,82 ms | 3 317, 2,79 ms |
-| `GET /api/bookings/mine` — medijana | — | 3,40 ms | 3,29 ms |
-| `POST /api/auth/login` — medijana | — | 427 ms | 440 ms |
+| `GET /api/resources`: zahteva/s, medijana | 3 250, 2,90 ms | 3 326, 2,85 ms | 3 305, 2,84 ms |
+| `GET /availability`: zahteva/s, medijana | 3 161, 2,97 ms | 3 312, 2,82 ms | 3 317, 2,79 ms |
+| `GET /api/bookings/mine`: medijana | ruta nije postojala | 3,40 ms | 3,29 ms |
+| `POST /api/auth/login`: medijana | ruta nije postojala | 427 ms | 440 ms |
 | Samostalni JAR | 20,5 MB | 27,3 MB | 27,3 MB |
 | Neuspelih zahteva | 0 / 192 365 | 0 / 281 562 | 0 / 283 655 |
 
@@ -215,13 +215,13 @@ AMD Ryzen 7 5800H, 13,9 GB RAM, Windows 11, JDK 21, 10 istovremenih korisnika, p
 - **Autentikacija: skupo jednom, jeftino uvek.** Provera tokena traje oko 2,5 µs; prijava
   oko 256 ms, namerno, zbog BCrypt-a. Odnos je oko 100 000 : 1.
 - **Prava vremenska zona.** `kotlinx-datetime` je izolovano oko 100 puta sporiji od ranijeg
-  fiksnog pomeraja, ali apsolutno košta oko 0,1 µs po pozivu — na sistemu nemerljivo.
+  fiksnog pomeraja, ali apsolutno košta oko 0,1 µs po pozivu, što je na nivou sistema nemerljivo.
 - **Ekosistem.** Autentikacija je donela 6,8 MB tranzitivnih zavisnosti (Guava, Jackson,
   Ktor HTTP klijent), od kojih se nijedna u projektu ne koristi. Ktor-ova JWT podrška je
   tanak omotač oko Java biblioteke, koja sa sobom donosi deo Java ekosistema.
 
 **Ograda.** Apsolutni brojevi sami po sebi još ne dokazuju da je performansa „u rangu
-adekvatnom za serverski deo" — za to je potreban komparator, npr. ekvivalentan servis na
+adekvatnom za serverski deo". Za to je potreban komparator, npr. ekvivalentan servis na
 drugoj platformi izmeren na istoj mašini. To je sledeći korak u merenjima.
 
 ---
@@ -275,12 +275,12 @@ iste funkcije iz `:core` koje server poziva:
 - `validate()` odlučuje koji slotovi mogu da se izaberu. Snimak desno je današnji dan
   posle 20:00: server za sva 24 slota kaže da su slobodna, jer zna samo za zauzetost; klijent
   ih prikazuje kao prošle, jer `validate()` odbija termin u prošlosti.
-- `defaultSlots()` određuje koliko se bira jednim dodirom — sto ceo dan, sala sat vremena.
+- `defaultSlots()` određuje koliko se bira jednim dodirom: sto ceo dan, sala sat vremena.
 - `validate()` se ponovo poziva nad celim izborom neposredno pre slanja, a zatim još jednom
   na serveru.
 
 Isto važi i za model: `LoginRequest`, `BookingDto` i enum `Role` su iste klase koje
-server serijalizuje, a klijent deserijalizuje — na klijentu nije napisana nijedna
+server serijalizuje, a klijent deserijalizuje. Na klijentu nije napisana nijedna
 paralelna definicija.
 
 <br clear="right">
@@ -384,7 +384,7 @@ sa `import org.jetbrains.exposed.v1.core.*`.
 | `POST` | `/api/bookings` | korisnik | Nova rezervacija → `201` ili `409` |
 | `GET` | `/api/bookings/mine` | korisnik | Moje rezervacije |
 | `GET` | `/api/bookings` | admin | Globalni pregled; filteri `userId`, `resourceId` |
-| `DELETE` | `/api/bookings/{id}` | korisnik, admin | Otkazivanje — korisnik svoje, administrator bilo koje |
+| `DELETE` | `/api/bookings/{id}` | korisnik, admin | Otkazivanje (korisnik svoje, administrator bilo koje) |
 
 „Korisnik" znači bilo koji prijavljeni korisnik, uključujući administratora. Identitet i
 uloga se čitaju isključivo iz tokena (`Authorization: Bearer ...`), nikad iz tela zahteva.
@@ -438,10 +438,10 @@ Navedena svesno, kao predložene granice obima:
 ## 11. Pokretanje
 
 Potreban je JDK 21; Gradle se preuzima kroz wrapper. Sve komande se pokreću **iz korena
-projekta** — foldera u kome se nalazi `gradlew.bat`.
+projekta**, foldera u kome se nalazi `gradlew.bat`.
 
 ```bash
-# Server — H2 baza, bez ikakve instalacije
+# Server: H2 baza, bez ikakve instalacije
 .\gradlew.bat :server:run
 # http://localhost:8080/api/resources
 ```
@@ -462,7 +462,7 @@ Pri prvom pokretanju server upisuje početne podatke, uključujući dva demo nal
 | Korisnik | `pera@firma.rs` | `pera123` |
 
 Ako je server pokretan još u fazi 1, stara baza `server/build/hotdesk.mv.db` sadrži
-lozinke u čistom tekstu, a početni podaci se ne upisuju ponovo preko postojećih — prijava
+lozinke u čistom tekstu, a početni podaci se ne upisuju ponovo preko postojećih, pa prijava
 tada vraća `401`. Rešenje je obrisati taj fajl pre pokretanja.
 
 JWT tajna se van razvojnog okruženja zadaje promenljivom okruženja, npr. u PowerShell-u:
@@ -485,5 +485,5 @@ Adresa servera se podešava na **dva** mesta i oba moraju da se slažu:
 `ApiClient.baseUrl` se postavlja u `MainActivity.kt`, pri pokretanju aplikacije.
 IP razvojne mašine se dobija komandom `ipconfig` (IPv4 Address). Oba uređaja moraju biti
 na istoj mreži. Fajl `app/androidApp/src/main/res/xml/network_security_config.xml` postoji
-zato što Android od verzije 9 blokira nekriptovani HTTP — bez upisane adrese aplikacija
+zato što Android od verzije 9 blokira nekriptovani HTTP. Bez upisane adrese aplikacija
 tiho ne uspeva da se poveže, a poruka o grešci ne kaže zašto.
