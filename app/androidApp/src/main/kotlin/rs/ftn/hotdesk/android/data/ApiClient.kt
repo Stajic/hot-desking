@@ -92,11 +92,15 @@ object ApiClient {
 
     suspend fun resources(
         type: ResourceType? = null,
-        location: String? = null
+        location: String? = null,
+        amenities: Collection<String> = emptyList()
     ): List<ResourceDto> =
         client.get("$baseUrl/api/resources") {
             type?.let { parameter("type", it.name) }
             location?.let { parameter("location", it) }
+            // Svaka stavka je zaseban parametar (?amenity=a&amenity=b); server vraca
+            // resurse koji imaju sve navedene.
+            amenities.forEach { parameter("amenity", it) }
         }.body()
 
     suspend fun availability(resourceId: String, at: Long): AvailabilityDto =

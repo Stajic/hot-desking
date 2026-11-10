@@ -1,5 +1,6 @@
 package rs.ftn.hotdesk.android.ui
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -86,6 +88,45 @@ fun ResourceListScreen(
                 onClick = { vm.setFilter(ResourceType.MEETING_ROOM) },
                 label = { Text("Sale") }
             )
+        }
+
+        // Lokacija: jedna ili sve. Ponudjene vrednosti dolaze sa servera, ne iz koda klijenta.
+        if (state.locationOptions.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = state.location == null,
+                    onClick = { vm.setLocation(null) },
+                    label = { Text("Sve lokacije") }
+                )
+                state.locationOptions.forEach { lokacija ->
+                    FilterChip(
+                        selected = state.location == lokacija,
+                        // Ponovni dodir na izabranu lokaciju je ponistava - "Sve lokacije"
+                        // je na pocetku reda i posle pomeranja vise nije na ekranu.
+                        onClick = { vm.setLocation(if (state.location == lokacija) null else lokacija) },
+                        label = { Text(lokacija) }
+                    )
+                }
+            }
+        }
+
+        // Oprema: vise izbora odjednom; resurs mora da ima svaku izabranu stavku.
+        if (state.amenityOptions.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                state.amenityOptions.forEach { stavka ->
+                    FilterChip(
+                        selected = stavka in state.amenities,
+                        onClick = { vm.toggleAmenity(stavka) },
+                        label = { Text(stavka) }
+                    )
+                }
+            }
         }
 
         when {
