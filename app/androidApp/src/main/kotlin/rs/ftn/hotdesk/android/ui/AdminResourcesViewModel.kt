@@ -43,8 +43,14 @@ class AdminResourcesViewModel : ViewModel() {
         load()
     }
 
-    fun onEnter() {
-        _state.update { it.copy(notice = null, confirming = null) }
+    /** @param saved naziv resursa koji je upravo sacuvan u formi, za poruku. */
+    fun onEnter(saved: String? = null) {
+        _state.update {
+            it.copy(
+                notice = saved?.let { naziv -> Notice("Sacuvano: $naziv.", isError = false) },
+                confirming = null
+            )
+        }
         load()
     }
 

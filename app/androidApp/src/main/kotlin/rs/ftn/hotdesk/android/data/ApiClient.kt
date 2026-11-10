@@ -11,6 +11,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
@@ -26,6 +27,7 @@ import rs.ftn.hotdesk.shared.model.LoginRequest
 import rs.ftn.hotdesk.shared.model.LoginResponse
 import rs.ftn.hotdesk.shared.model.ResourceDto
 import rs.ftn.hotdesk.shared.model.ResourceType
+import rs.ftn.hotdesk.shared.model.UpsertResourceRequest
 
 /**
  * Ktor Client. U fazi 1 zivi u :androidApp modulu.
@@ -222,6 +224,51 @@ object ApiClient {
             else -> errorOf(response)?.message ?: "Promena nije izvrsena (${response.status.value})."
         }
     }
+
+    /** Ishod dodavanja ili izmene resursa. */
+    sealed interface SaveOutcome {
+        data class Saved(val resource: ResourceDto) : SaveOutcome
+
+        /** 400: [code] je kod polja iz ResourceRules - isti koji daje provera na klijentu. */
+        data class Invalid(val code: String, val message: String) : SaveOutcome
+        data object NotFound : SaveOutcome
+        data class Failed(val message: String) : SaveOutcome
+    }
+
+    /** Novi resurs (samo ADMIN). */
+    suspend fun createResource(req: UpsertResourceRequest): SaveOutcome =
+        saveOutcome(
+            client.post("$baseUrl/api/resources") {
+                token?.let { bearerAuth(it) }
+                setBody(req)
+            }
+        )
+
+    /** Izmena postojeceg resursa (samo ADMIN). */
+    suspend fun updateResource(resourceId: String, req: UpsertResourceRequest): SaveOutcome =
+        saveOutcome(
+            client.put("$baseUrl/api/resources/$resourceId") {
+                token?.let { bearerAuth(it) }
+                setBody(req)
+            }
+        )
+
+    private suspend fun saveOutcome(response: HttpResponse): SaveOutcome =
+        when (response.status) {
+            HttpStatusCode.Created, HttpStatusCode.OK -> SaveOutcome.Saved(response.body())
+            HttpStatusCode.BadRequest -> {
+                val greska = errorOf(response)
+                SaveOutcome.Invalid(greska?.code.orEmpty(), greska?.message ?: "Neispravan zahtev.")
+            }
+            HttpStatusCode.NotFound -> SaveOutcome.NotFound
+            HttpStatusCode.Unauthorized -> {
+                Session.end()
+                throw SessionExpiredException()
+            }
+            else -> SaveOutcome.Failed(
+                errorOf(response)?.message ?: "Cuvanje nije uspelo (${response.status.value})."
+            )
+        }
 
     /** Telo odgovora sa greskom, ako ga server poslao u ocekivanom obliku. */
     private suspend fun errorOf(response: HttpResponse): ErrorResponse? =

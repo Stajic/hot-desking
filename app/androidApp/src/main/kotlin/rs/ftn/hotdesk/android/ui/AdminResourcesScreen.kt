@@ -17,6 +17,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,16 +35,33 @@ import rs.ftn.hotdesk.shared.model.ResourceType
  * Upravljanje resursima (samo ADMIN): svi resursi, i neaktivni, sa deaktivacijom i
  * aktivacijom. Ulaz je na listi resursa i vidljiv je samo administratoru; server
  * ionako svakom drugom vraca 403.
+ *
+ * Dodir na karticu otvara izmenu resursa, a "Novi resurs" praznu formu
+ * ([ResourceFormScreen]). Forma dobija i postojece lokacije, da ih ponudi kao cipove.
+ *
+ * @param saved naziv resursa koji je upravo sacuvan u formi, za poruku na vrhu.
  */
 @Composable
-fun AdminResourcesScreen(onBack: () -> Unit, vm: AdminResourcesViewModel = viewModel()) {
-    LaunchedEffect(Unit) { vm.onEnter() }
+fun AdminResourcesScreen(
+    onBack: () -> Unit,
+    onNew: (locations: List<String>) -> Unit,
+    onEdit: (resource: ResourceDto, locations: List<String>) -> Unit,
+    saved: String? = null,
+    vm: AdminResourcesViewModel = viewModel()
+) {
+    LaunchedEffect(saved) { vm.onEnter(saved) }
     val state by vm.state.collectAsStateWithLifecycle()
+
+    val lokacije = state.resources.map { it.location }.distinct().sorted()
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
 
         TextButton(onClick = onBack, contentPadding = PaddingValues(0.dp)) { Text("< Nazad") }
         Text("Upravljanje resursima", style = MaterialTheme.typography.headlineSmall)
+
+        OutlinedButton(onClick = { onNew(lokacije) }, modifier = Modifier.padding(top = 8.dp)) {
+            Text("Novi resurs")
+        }
 
         state.notice?.let {
             Text(
@@ -73,6 +91,7 @@ fun AdminResourcesScreen(onBack: () -> Unit, vm: AdminResourcesViewModel = viewM
                     items(state.resources, key = { it.id }) { r ->
                         AdminResourceCard(
                             resource = r,
+                            onClick = { onEdit(r, lokacije) },
                             trailing = {
                                 when {
                                     state.changingId == r.id ->
@@ -140,9 +159,10 @@ private fun remainingBookings(n: Int): String {
 }
 
 @Composable
-private fun AdminResourceCard(resource: ResourceDto, trailing: @Composable () -> Unit) {
+private fun AdminResourceCard(resource: ResourceDto, onClick: () -> Unit, trailing: @Composable () -> Unit) {
     // Neaktivan resurs je bled, isto kao istorija u Mojim rezervacijama.
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = if (!resource.isActive) {
             CardDefaults.cardColors(
