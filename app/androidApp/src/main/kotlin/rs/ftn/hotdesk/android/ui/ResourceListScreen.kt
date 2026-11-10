@@ -46,7 +46,8 @@ fun ResourceListScreen(
     vm: ResourceListViewModel = viewModel(),
     onResourceClick: (ResourceDto) -> Unit = {},
     onMyBookingsClick: () -> Unit = {},
-    onAdminClick: () -> Unit = {}
+    onAdminClick: () -> Unit = {},
+    onAllBookingsClick: () -> Unit = {}
 ) {
     // Pri svakom povratku na ekran: lista je u medjuvremenu mogla da se promeni,
     // npr. administrator je deaktivirao resurs. ViewModel prezivljava promenu ekrana,
@@ -81,8 +82,9 @@ fun ResourceListScreen(
         // Samo administratoru. Server svakom drugom ionako vraca 403; ovde se samo ne
         // prikazuje dugme koje korisnik ne moze da koristi.
         if (korisnik?.role == Role.ADMIN) {
-            OutlinedButton(onClick = onAdminClick, modifier = Modifier.padding(top = 8.dp)) {
-                Text("Upravljanje resursima")
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onAdminClick) { Text("Upravljanje resursima") }
+                OutlinedButton(onClick = onAllBookingsClick) { Text("Sve rezervacije") }
             }
         }
 

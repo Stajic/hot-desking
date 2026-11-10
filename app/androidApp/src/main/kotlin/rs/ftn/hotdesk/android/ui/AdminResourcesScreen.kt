@@ -46,6 +46,7 @@ fun AdminResourcesScreen(
     onBack: () -> Unit,
     onNew: (locations: List<String>) -> Unit,
     onEdit: (resource: ResourceDto, locations: List<String>) -> Unit,
+    onShowBookings: (resource: ResourceDto) -> Unit,
     saved: String? = null,
     vm: AdminResourcesViewModel = viewModel()
 ) {
@@ -125,13 +126,26 @@ fun AdminResourcesScreen(
             // akuzativ, a naziv resursa se ne moze automatski menjati po padezima.
             title = { Text("Deaktivirati resurs?") },
             text = {
-                Text(
-                    "${r.name} izlazi iz ponude za nove rezervacije.\n\n" + when {
-                        state.countFailed -> "Broj postojecih rezervacija nije moguce utvrditi."
-                        broj == null -> "Proveravam postojece rezervacije..."
-                        else -> remainingBookings(broj)
+                Column {
+                    Text(
+                        "${r.name} izlazi iz ponude za nove rezervacije.\n\n" + when {
+                            state.countFailed -> "Broj postojecih rezervacija nije moguce utvrditi."
+                            broj == null -> "Proveravam postojece rezervacije..."
+                            else -> remainingBookings(broj)
+                        }
+                    )
+                    // Odluka je da deaktivacija ne otkazuje rezervacije; ovde administrator
+                    // jednim dodirom vidi koje su to i moze da ih otkaze pojedinacno.
+                    if (broj != null && broj > 0) {
+                        TextButton(
+                            onClick = {
+                                vm.dismissDeactivate()
+                                onShowBookings(r)
+                            },
+                            contentPadding = PaddingValues(0.dp)
+                        ) { Text("Prikazi rezervacije") }
                     }
-                )
+                }
             },
             // Potvrda tek kad je posledica poznata (ili kad se zna da se ne moze utvrditi).
             confirmButton = {

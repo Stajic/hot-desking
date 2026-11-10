@@ -188,14 +188,17 @@ object ApiClient {
     // --- Administrator ---
 
     /**
-     * Rezervacije nad jednim resursom, iz globalnog pregleda (samo ADMIN).
-     * Upravljanje resursima iz njih racuna koliko aktivnih rezervacija ostaje nad
-     * resursom koji se deaktivira.
+     * Globalni pregled rezervacija (samo ADMIN), sa opcionim filterima po korisniku
+     * i resursu. Vraca sve, i otkazane i zavrsene.
+     *
+     * Koriste ga ekran "Sve rezervacije" i upravljanje resursima, koje iz rezervacija
+     * nad resursom racuna koliko aktivnih ostaje pri deaktivaciji.
      */
-    suspend fun bookingsForResource(resourceId: String): List<BookingDto> {
+    suspend fun allBookings(userId: String? = null, resourceId: String? = null): List<BookingDto> {
         val response = client.get("$baseUrl/api/bookings") {
             token?.let { bearerAuth(it) }
-            parameter("resourceId", resourceId)
+            userId?.let { parameter("userId", it) }
+            resourceId?.let { parameter("resourceId", it) }
         }
         if (response.status == HttpStatusCode.Unauthorized) {
             Session.end()

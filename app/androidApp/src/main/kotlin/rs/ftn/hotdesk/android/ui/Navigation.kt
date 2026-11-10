@@ -19,11 +19,21 @@ sealed interface Screen {
 
     /** [resource] == null je nov resurs; [locations] su postojece lokacije za predloge. */
     data class ResourceForm(val resource: ResourceDto?, val locations: List<String>) : Screen
+
+    /**
+     * Globalni pregled rezervacija. [resourceId] je filter pri ulasku; [back] je ekran
+     * sa kog je otvoren, jer se do pregleda stize i sa liste i iz upravljanja resursima.
+     */
+    data class AllBookings(val resourceId: String? = null, val back: Screen = Resources) : Screen
 }
 
-/** Ekran na koji vodi "nazad": forma se vraca na upravljanje, sve ostalo na listu. */
+/**
+ * Ekran na koji vodi "nazad": forma se vraca na upravljanje, globalni pregled tamo
+ * odakle je otvoren, sve ostalo na listu.
+ */
 private fun Screen.parent(): Screen = when (this) {
     is Screen.ResourceForm -> Screen.AdminResources()
+    is Screen.AllBookings -> back
     else -> Screen.Resources
 }
 
@@ -31,7 +41,8 @@ private fun Screen.parent(): Screen = when (this) {
  * Navigacija za prijavljenog korisnika.
  *
  * ODLUKA: bez biblioteke za navigaciju. Ekrana je malo i dubina je najvise tri
- * nivoa (lista -> upravljanje resursima -> forma), pa je stanje jedna promenljiva,
+ * nivoa (lista -> upravljanje resursima -> forma ili sve rezervacije), pa je stanje
+ * jedna promenljiva,
  * a roditelja svakog ekrana daje [parent]. Sistemsko dugme "nazad" pokriva
  * BackHandler iz activity-compose, koji je vec medju zavisnostima. Biblioteka bi
  * donela novu zavisnost (i njene tranzitivne zavisnosti) bez stvarne dobiti.
@@ -50,7 +61,8 @@ fun AppNavigation() {
             ResourceListScreen(
                 onResourceClick = { screen = Screen.Availability(it) },
                 onMyBookingsClick = { screen = Screen.MyBookings },
-                onAdminClick = { screen = Screen.AdminResources() }
+                onAdminClick = { screen = Screen.AdminResources() },
+                onAllBookingsClick = { screen = Screen.AllBookings() }
             )
 
         is Screen.Availability ->
@@ -64,8 +76,14 @@ fun AppNavigation() {
                 saved = s.saved,
                 onBack = { screen = Screen.Resources },
                 onNew = { lokacije -> screen = Screen.ResourceForm(null, lokacije) },
-                onEdit = { r, lokacije -> screen = Screen.ResourceForm(r, lokacije) }
+                onEdit = { r, lokacije -> screen = Screen.ResourceForm(r, lokacije) },
+                onShowBookings = { r ->
+                    screen = Screen.AllBookings(resourceId = r.id, back = Screen.AdminResources())
+                }
             )
+
+        is Screen.AllBookings ->
+            AllBookingsScreen(resourceId = s.resourceId, onBack = { screen = s.parent() })
 
         is Screen.ResourceForm ->
             ResourceFormScreen(

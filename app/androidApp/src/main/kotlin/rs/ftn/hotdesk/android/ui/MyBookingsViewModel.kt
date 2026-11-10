@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import rs.ftn.hotdesk.android.data.ApiClient
 import rs.ftn.hotdesk.shared.model.BookingDto
-import rs.ftn.hotdesk.shared.model.BookingStatus
 
 data class MyBookingsState(
     val isLoading: Boolean = true,
@@ -51,9 +50,7 @@ class MyBookingsViewModel : ViewModel() {
             try {
                 val sve = ApiClient.myBookings()
                 val now = System.currentTimeMillis()
-                val (aktivne, ostale) = sve.partition {
-                    it.status == BookingStatus.CONFIRMED && it.endTime > now
-                }
+                val (aktivne, ostale) = sve.partition { it.isActive(now) }
                 _state.update {
                     it.copy(
                         isLoading = false,
@@ -76,8 +73,7 @@ class MyBookingsViewModel : ViewModel() {
     }
 
     /** Otkazivanje ima smisla samo pre pocetka termina. */
-    fun canCancel(b: BookingDto): Boolean =
-        b.status == BookingStatus.CONFIRMED && b.startTime > System.currentTimeMillis()
+    fun canCancel(b: BookingDto): Boolean = b.canCancel(System.currentTimeMillis())
 
     fun askCancel(b: BookingDto) = _state.update { it.copy(confirming = b, notice = null) }
 

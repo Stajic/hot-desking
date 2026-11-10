@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import rs.ftn.hotdesk.android.data.ApiClient
-import rs.ftn.hotdesk.shared.model.BookingStatus
 import rs.ftn.hotdesk.shared.model.ResourceDto
 
 data class AdminResourcesState(
@@ -80,10 +79,8 @@ class AdminResourcesViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val now = System.currentTimeMillis()
-                // Isto pravilo kao "Aktivne" u Mojim rezervacijama: potvrdjena i jos nije zavrsena.
-                val broj = ApiClient.bookingsForResource(r.id).count {
-                    it.status == BookingStatus.CONFIRMED && it.endTime > now
-                }
+                // Isto pravilo kao "Aktivne" u Mojim rezervacijama (ActiveBookings.kt).
+                val broj = ApiClient.allBookings(resourceId = r.id).count { it.isActive(now) }
                 // Dijalog je u medjuvremenu mogao biti zatvoren ili otvoren za drugi resurs.
                 _state.update { if (it.confirming?.id == r.id) it.copy(activeBookings = broj) else it }
             } catch (e: ApiClient.SessionExpiredException) {
