@@ -13,6 +13,7 @@ sealed interface Screen {
     data object Resources : Screen
     data class Availability(val resource: ResourceDto) : Screen
     data object MyBookings : Screen
+    data object AdminResources : Screen
 }
 
 /**
@@ -36,7 +37,8 @@ fun AppNavigation() {
         Screen.Resources ->
             ResourceListScreen(
                 onResourceClick = { screen = Screen.Availability(it) },
-                onMyBookingsClick = { screen = Screen.MyBookings }
+                onMyBookingsClick = { screen = Screen.MyBookings },
+                onAdminClick = { screen = Screen.AdminResources }
             )
 
         is Screen.Availability ->
@@ -44,5 +46,8 @@ fun AppNavigation() {
 
         Screen.MyBookings ->
             MyBookingsScreen(onBack = { screen = Screen.Resources })
+
+        Screen.AdminResources ->
+            AdminResourcesScreen(onBack = { screen = Screen.Resources })
     }
 }

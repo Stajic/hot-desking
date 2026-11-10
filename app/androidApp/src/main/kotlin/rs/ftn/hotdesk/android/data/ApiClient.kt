@@ -93,7 +93,8 @@ object ApiClient {
     suspend fun resources(
         type: ResourceType? = null,
         location: String? = null,
-        amenities: Collection<String> = emptyList()
+        amenities: Collection<String> = emptyList(),
+        activeOnly: Boolean = true
     ): List<ResourceDto> =
         client.get("$baseUrl/api/resources") {
             type?.let { parameter("type", it.name) }
@@ -101,6 +102,8 @@ object ApiClient {
             // Svaka stavka je zaseban parametar (?amenity=a&amenity=b); server vraca
             // resurse koji imaju sve navedene.
             amenities.forEach { parameter("amenity", it) }
+            // Server podrazumeva samo aktivne; neaktivne trazi upravljanje resursima.
+            if (!activeOnly) parameter("activeOnly", false)
         }.body()
 
     suspend fun availability(resourceId: String, at: Long): AvailabilityDto =
@@ -177,6 +180,46 @@ object ApiClient {
             else -> BookingOutcome.Rejected(
                 errorOf(response)?.message ?: "Zahtev nije prihvacen (${response.status.value})."
             )
+        }
+    }
+
+    // --- Administrator ---
+
+    /**
+     * Rezervacije nad jednim resursom, iz globalnog pregleda (samo ADMIN).
+     * Upravljanje resursima iz njih racuna koliko aktivnih rezervacija ostaje nad
+     * resursom koji se deaktivira.
+     */
+    suspend fun bookingsForResource(resourceId: String): List<BookingDto> {
+        val response = client.get("$baseUrl/api/bookings") {
+            token?.let { bearerAuth(it) }
+            parameter("resourceId", resourceId)
+        }
+        if (response.status == HttpStatusCode.Unauthorized) {
+            Session.end()
+            throw SessionExpiredException()
+        }
+        return response.body()
+    }
+
+    /**
+     * Deaktivacija ili aktivacija resursa (samo ADMIN).
+     *
+     * @return null ako je promena izvrsena; inace poruka servera (npr. resurs ne
+     *         postoji ili uloga nije dovoljna).
+     */
+    suspend fun setActive(resourceId: String, active: Boolean): String? {
+        val action = if (active) "activate" else "deactivate"
+        val response = client.post("$baseUrl/api/resources/$resourceId/$action") {
+            token?.let { bearerAuth(it) }
+        }
+        return when (response.status) {
+            HttpStatusCode.NoContent -> null
+            HttpStatusCode.Unauthorized -> {
+                Session.end()
+                throw SessionExpiredException()
+            }
+            else -> errorOf(response)?.message ?: "Promena nije izvrsena (${response.status.value})."
         }
     }
 

@@ -16,9 +16,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import rs.ftn.hotdesk.android.data.Session
 import rs.ftn.hotdesk.shared.model.ResourceDto
 import rs.ftn.hotdesk.shared.model.ResourceType
+import rs.ftn.hotdesk.shared.model.Role
 
 /**
  * Lista resursa. U fazi 1 dokazuje da podaci putuju kroz sva tri modula:
@@ -36,13 +39,19 @@ import rs.ftn.hotdesk.shared.model.ResourceType
  *
  * Od faze 2 dodir na karticu otvara dnevnu mrezu slotova ([AvailabilityScreen]),
  * a dugme u zaglavlju pregled sopstvenih rezervacija ([MyBookingsScreen]).
+ * Od faze 3 administrator ovde ima i ulaz u upravljanje resursima ([AdminResourcesScreen]).
  */
 @Composable
 fun ResourceListScreen(
     vm: ResourceListViewModel = viewModel(),
     onResourceClick: (ResourceDto) -> Unit = {},
-    onMyBookingsClick: () -> Unit = {}
+    onMyBookingsClick: () -> Unit = {},
+    onAdminClick: () -> Unit = {}
 ) {
+    // Pri svakom povratku na ekran: lista je u medjuvremenu mogla da se promeni,
+    // npr. administrator je deaktivirao resurs. ViewModel prezivljava promenu ekrana,
+    // pa se bez ovoga ne bi ponovo ucitala.
+    LaunchedEffect(Unit) { vm.load() }
     val state by vm.state.collectAsStateWithLifecycle()
 
     val korisnik by Session.user.collectAsStateWithLifecycle()
@@ -68,6 +77,14 @@ fun ResourceListScreen(
         }
 
         Text("Slobodni resursi", style = MaterialTheme.typography.headlineSmall)
+
+        // Samo administratoru. Server svakom drugom ionako vraca 403; ovde se samo ne
+        // prikazuje dugme koje korisnik ne moze da koristi.
+        if (korisnik?.role == Role.ADMIN) {
+            OutlinedButton(onClick = onAdminClick, modifier = Modifier.padding(top = 8.dp)) {
+                Text("Upravljanje resursima")
+            }
+        }
 
         Row(
             Modifier.fillMaxWidth().padding(vertical = 12.dp),
