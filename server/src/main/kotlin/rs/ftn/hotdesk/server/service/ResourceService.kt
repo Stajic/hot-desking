@@ -4,6 +4,7 @@ import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.andWhere
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -16,15 +17,29 @@ import java.util.UUID
 
 object ResourceService {
 
+    /**
+     * @param withAmenities resurs mora da ima svaku navedenu stavku opreme.
+     */
     fun list(
         type: ResourceType? = null,
         location: String? = null,
-        activeOnly: Boolean = true
+        activeOnly: Boolean = true,
+        withAmenities: List<String> = emptyList()
     ): List<ResourceDto> = transaction {
         var q = Resources.selectAll()
         if (type != null) q = q.andWhere { Resources.type eq type.name }
         if (location != null) q = q.andWhere { Resources.location eq location }
         if (activeOnly) q = q.andWhere { Resources.isActive eq true }
+
+        // Podupit umesto JOIN-a: svaka stavka je zaseban uslov (pa se trazi resurs koji
+        // ima sve), a red resursa se ne umnozava kao sto bi se umnozio pri spajanju.
+        withAmenities.forEach { a ->
+            q = q.andWhere {
+                Resources.id inSubQuery ResourceAmenities
+                    .select(ResourceAmenities.resourceId)
+                    .where { ResourceAmenities.amenity eq a }
+            }
+        }
 
         val rows = q.orderBy(Resources.name).toList()
         val amenities = amenitiesFor(rows.map { it[Resources.id] })

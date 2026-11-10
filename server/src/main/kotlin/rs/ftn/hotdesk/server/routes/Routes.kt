@@ -1,6 +1,7 @@
 package rs.ftn.hotdesk.server.routes
 
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.authenticate
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
@@ -20,6 +21,7 @@ import rs.ftn.hotdesk.shared.model.CreateBookingRequest
 import rs.ftn.hotdesk.shared.model.ErrorResponse
 import rs.ftn.hotdesk.shared.model.ResourceType
 import rs.ftn.hotdesk.shared.model.UpsertResourceRequest
+import rs.ftn.hotdesk.shared.rules.ResourceRules
 
 /**
  * AUTENTIKACIJA (faza 2).
@@ -45,7 +47,9 @@ fun Route.apiRoutes() {
             val type = call.request.queryParameters["type"]?.let { ResourceType.valueOf(it) }
             val location = call.request.queryParameters["location"]
             val activeOnly = call.request.queryParameters["activeOnly"]?.toBooleanStrictOrNull() ?: true
-            call.respond(ResourceService.list(type, location, activeOnly))
+            // Parametar se moze ponoviti: ?amenity=projektor&amenity=tabla trazi resurs sa oba.
+            val amenities = call.request.queryParameters.getAll("amenity").orEmpty()
+            call.respond(ResourceService.list(type, location, activeOnly, amenities))
         }
 
         get("/{id}") {
@@ -73,13 +77,16 @@ fun Route.apiRoutes() {
             post {
                 if (!call.requireAdmin()) return@post
                 val req = call.receive<UpsertResourceRequest>()
+                if (!call.requireValid(req)) return@post
                 call.respond(HttpStatusCode.Created, ResourceService.create(req))
             }
 
             put("/{id}") {
                 if (!call.requireAdmin()) return@put
                 val id = call.parameters["id"]!!
-                val updated = ResourceService.update(id, call.receive())
+                val req = call.receive<UpsertResourceRequest>()
+                if (!call.requireValid(req)) return@put
+                val updated = ResourceService.update(id, req)
                 if (updated == null) {
                     call.respond(HttpStatusCode.NotFound, ErrorResponse("NOT_FOUND", "Resurs ne postoji."))
                 } else {
@@ -165,4 +172,20 @@ fun Route.apiRoutes() {
             }
         }
     }
+}
+
+/**
+ * Provera resursa pre upisa, istim pravilima koja forma na klijentu proverava pre
+ * slanja. Ovde kao autoritet: klijentu se ne veruje.
+ *
+ * Kao i requireAdmin(): vraca true ako se sme dalje, a ako ne sme, sam odgovara
+ * sa 400 i kodom polja iz ResourceRules.
+ */
+private suspend fun ApplicationCall.requireValid(req: UpsertResourceRequest): Boolean {
+    val result = ResourceRules.validate(req)
+    if (result is ResourceRules.Result.Invalid) {
+        respond(HttpStatusCode.BadRequest, ErrorResponse(result.code, result.message))
+        return false
+    }
+    return true
 }
