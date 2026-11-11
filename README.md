@@ -14,8 +14,9 @@ Sistem razlikuje dve uloge sa različitim pogledom na iste podatke.
 
 ### Administrator
 
-- **CRUD nad resursima:**  dodavanje stolova i sala, izmena opisnih parametara
-  (kapacitet, lokacija, oprema)
+- **Upravljanje resursima:** dodavanje stolova i sala, izmena opisnih parametara
+  (kapacitet, lokacija, oprema). Brisanja nema: resurs koji više nije u upotrebi se
+  deaktivira, a njegove rezervacije ostaju u istoriji.
 - **Upravljanje raspoloživošću:** deaktivacija resursa koji je van funkcije ili se renovira
 - **Globalni pregled:** uvid u sve rezervacije u sistemu, sa filtriranjem po korisniku
   ili po resursu
@@ -29,10 +30,18 @@ Sistem razlikuje dve uloge sa različitim pogledom na iste podatke.
 
 ### Dve odluke
 
+<img src="docs/deaktivacija.png" alt="Dijalog deaktivacije" width="240" align="right">
+
 **Deaktivacija resursa ne dira postojeće rezervacije.** Kaskadno otkazivanje bi korisniku
 oduzelo termin bez ikakvog obaveštenja. Umesto toga
 resurs izlazi iz ponude za nove rezervacije, a administrator u globalnom pregledu vidi koje
 rezervacije još uvek vise nad njim i može da ih otkaže pojedinačno.
+
+Od faze 3 posledica odluke je vidljiva onome ko je donosi: dijalog deaktivacije kaže
+koliko aktivnih rezervacija ostaje nad resursom i jednim dodirom vodi do njih. Odluku
+dokazuje i test `deaktivacija_odbija_nove_rezervacije_a_postojece_ostavlja`.
+
+<br clear="right">
 
 **Otkazivanje oslobađa termin, ali čuva zapis.** Rezervacija ostaje sa statusom `CANCELLED`.
 Razlog je tehnički i objašnjen je u poglavlju 3.
@@ -50,7 +59,20 @@ lokalne mreže. Posle prijave, korisnik vidi listu resursa sa filterima; dodir n
 otvara dnevnu mrežu od 24 slota, gde dodir na slobodan termin bira podrazumevanu dužinu
 (sto ceo dan, sala sat vremena) i šalje rezervaciju. Pregled „Moje rezervacije" deli
 aktivne od istorije: otkazana rezervacija ne nestaje, nego prelazi u istoriju, a njen
-termin se odmah oslobađa.
+termin se odmah oslobađa. Filteri na listi rade po tipu, lokaciji i opremi; više
+izabranih stavki opreme znači da resurs mora da ima svaku.
+
+| Upravljanje resursima | Forma za resurs | Sve rezervacije |
+|---|---|---|
+| <img src="docs/upravljanje-resursima.png" alt="Upravljanje resursima" width="240"> | <img src="docs/forma-resursa.png" alt="Forma za resurs" width="240"> | <img src="docs/sve-rezervacije.png" alt="Sve rezervacije" width="240"> |
+
+Administrator ima još dva ekrana, dostupna samo njemu. „Upravljanje resursima"
+prikazuje sve resurse, i neaktivne (bledi), sa deaktivacijom i aktivacijom; dodir na
+resurs otvara formu za izmenu. Forma proverava unos istim pravilima koja server
+primenjuje pre upisa: greška sa srednjeg snimka nastala je dok je server bio zaustavljen,
+dakle na samom telefonu (poglavlje 5). „Sve rezervacije" je globalni pregled sa
+filterima po korisniku i resursu, u kome administrator može da otkaže bilo koju aktivnu
+rezervaciju.
 
 Odgovor servera na `GET /api/resources`, skraćen na tri resursa:
 
@@ -153,8 +175,10 @@ Paralelnih zahteva: 50 | prihvaceno: 1 | odbijeno (409): 49
 ```
 
 Uz taj test prolaze i `delimicno_preklapanje_takodje_pada` (09:00–10:00 naspram 09:30–10:30,
-dele tačno jedan slot) i `otkazana_rezervacija_oslobadja_termin`. Ukupno tri testa u `:server`
-i trinaest testova `BookingRules` u `:core`. Svi prolaze.
+dele tačno jedan slot) i `otkazana_rezervacija_oslobadja_termin`. Od faze 3 `:server` ima i
+osam testova koji idu kroz ceo server preko HTTP-a (`AdminRoutesTest`): uloge, pravila za
+resurs, deaktivacija i filter po opremi. Ukupno 11 testova u `:server` i 21 u `:core`
+(13 `BookingRules`, 8 `ResourceRules`). Svi prolaze.
 
 ### Iz ugla korisnika
 
@@ -183,31 +207,40 @@ Merenja su uvedena od faze 1, kao niz uporedivih tačaka posle svakog većeg kor
 kao jednokratna provera na kraju. Uslovi su isti u svakoj tački: ista mašina, k6 za
 opterećenje i `jcmd` za memoriju, samostalni JAR umesto pokretanja kroz Gradle,
 zagrevanje koje se odbacuje. Svaki izveštaj beleži okruženje, metodologiju i ograničenja.
+Pred četvrtu tačku okruženje je promenjeno, pa je u istoj sesiji izmerena i prethodna
+verzija, kao kontrola.
 
 | Tačka merenja | Commit | Izveštaj |
 |---|---|---|
 | Faza 1 | `8ed000a` | [`docs/merenja/faza-1`](docs/merenja/faza-1/README.md) |
 | Posle autentikacije | `2026226` | [`docs/merenja/faza-2-korak-1`](docs/merenja/faza-2-korak-1/README.md) |
 | Kraj faze 2 | `60daee4` | [`docs/merenja/faza-2-kraj`](docs/merenja/faza-2-kraj/README.md) |
+| Kraj faze 3 | `9d3f81d` | [`docs/merenja/faza-3`](docs/merenja/faza-3/README.md) |
 
-| | Faza 1 | Posle autentikacije | Kraj faze 2 |
-|---|---|---|---|
-| Topao start (do prvog odgovora) | 1 764 ms | 1 761 ms | 1 770 ms |
-| Hladan start (prazna baza) | 1 778 ms | 2 292 ms | 2 316 ms |
-| Memorija stvarno zauzeta posle GC-a | 15,1 MB | 17,0 MB | 17,0 MB |
-| `GET /api/resources`: zahteva/s, medijana | 3 250, 2,90 ms | 3 326, 2,85 ms | 3 305, 2,84 ms |
-| `GET /availability`: zahteva/s, medijana | 3 161, 2,97 ms | 3 312, 2,82 ms | 3 317, 2,79 ms |
-| `GET /api/bookings/mine`: medijana | ruta nije postojala | 3,40 ms | 3,29 ms |
-| `POST /api/auth/login`: medijana | ruta nije postojala | 427 ms | 440 ms |
-| Samostalni JAR | 20,5 MB | 27,3 MB | 27,3 MB |
-| Neuspelih zahteva | 0 / 192 365 | 0 / 281 562 | 0 / 283 655 |
+| | Faza 1 | Posle autentikacije | Kraj faze 2 | Kraj faze 3 |
+|---|---|---|---|---|
+| Topao start (do prvog odgovora) | 1 764 ms | 1 761 ms | 1 770 ms | 1 744 ms |
+| Hladan start (prazna baza) | 1 778 ms | 2 292 ms | 2 316 ms | 2 287 ms |
+| Memorija stvarno zauzeta posle GC-a | 15,1 MB | 17,0 MB | 17,0 MB | 17,2 MB |
+| `GET /api/resources`: zahteva/s, medijana | 3 250, 2,90 ms | 3 326, 2,85 ms | 3 305, 2,84 ms | 2 790, 3,44 ms ¹ |
+| `GET /availability`: zahteva/s, medijana | 3 161, 2,97 ms | 3 312, 2,82 ms | 3 317, 2,79 ms | 2 798, 3,38 ms ¹ |
+| `GET /api/bookings/mine`: medijana | ruta nije postojala | 3,40 ms | 3,29 ms | 3,54 ms |
+| `POST /api/auth/login`: medijana | ruta nije postojala | 427 ms | 440 ms | 399 ms |
+| Samostalni JAR | 20,5 MB | 27,3 MB | 27,3 MB | 27,3 MB |
+| Neuspelih zahteva | 0 / 192 365 | 0 / 281 562 | 0 / 283 655 | 0 / 1 276 806 ² |
+
+¹ Niže nego ranije zbog promene okruženja, ne koda: kontrolni JAR faze 2, izmeren u istoj
+sesiji neposredno posle, daje 2 787 i 2 793 zahteva/s.
+² Uključuje kontrolna merenja i nove rute.
 
 AMD Ryzen 7 5800H, 13,9 GB RAM, Windows 11, JDK 21, 10 istovremenih korisnika, preko `localhost`.
 
 **Glavni nalazi:**
 
-- **Odziv i stabilnost.** Server na razvojnom laptopu opslužuje oko 3 300 zahteva u sekundi
-  uz medijanu ispod 3 ms. Nijedan od oko 758 000 zahteva kroz tri merenja nije pao.
+- **Odziv i stabilnost.** Server na razvojnom laptopu opslužuje oko 2 800–3 300 zahteva u
+  sekundi uz medijanu ispod 4 ms. Nijedan od oko 2 034 000 zahteva kroz četiri merenja nije pao.
+- **Nove funkcije bez merljivog troška.** Faza 3 i kontrolna faza 2, izmerene jedna za
+  drugom, razlikuju se za manje od 1 %. Filter po opremi smanjuje propusnost liste za 1,4 %.
 - **Memorija.** Aplikacija posle sakupljanja smeća drži 15–17 MB. Radni skup od oko
   150–170 MB u mirovanju pretežno je trošak same JVM, ne podataka aplikacije.
 - **Deljena logika nema merljiv trošak.** Ruta `availability` izvršava `BookingRules` iz
@@ -220,9 +253,20 @@ AMD Ryzen 7 5800H, 13,9 GB RAM, Windows 11, JDK 21, 10 istovremenih korisnika, p
   Ktor HTTP klijent), od kojih se nijedna u projektu ne koristi. Ktor-ova JWT podrška je
   tanak omotač oko Java biblioteke, koja sa sobom donosi deo Java ekosistema.
 
-**Ograda.** Apsolutni brojevi sami po sebi još ne dokazuju da je performansa „u rangu
-adekvatnom za serverski deo". Za to je potreban komparator, npr. ekvivalentan servis na
-drugoj platformi izmeren na istoj mašini. To je sledeći korak u merenjima.
+- **Globalni pregled bez straničenja raste linearno.** Pri 100, 1 000 i 10 000 rezervacija
+  odgovor jednom administratoru traje 2,2, 4,5 i 32 ms, a veličina odgovora je 26 KB,
+  263 KB i 2,6 MB. To je jedino mesto koje sa rastom podataka postaje problem
+  (poglavlje 10).
+
+**Da li je to dovoljno?** Apsolutni brojevi sami po sebi ne kažu da je performansa
+adekvatna, pa su upoređeni sa procenjenim opterećenjem stvarne upotrebe. Firma od 1 000
+zaposlenih, u kojoj svi u istih 15 minuta urade po šest uobičajenih zahteva (prijava,
+lista, dva pregleda mreže, rezervacija, moje rezervacije), stvara oko **7 zahteva u
+sekundi**, a server ih obrađuje oko **2 800**; prijava traži oko 1, a server ih obrađuje
+oko 23. Uobičajeni zahtevi traju na serveru 3–4 ms, daleko ispod 0,1 s, granice do koje
+korisnik doživljava odgovor kao trenutan (Nielsen, *Usability Engineering*, 1993).
+Pretpostavke i proračun su u [izveštaju faze 3](docs/merenja/faza-3/README.md#7-da-li-je-to-dovoljno-zahtevi-iz-domena);
+to je model, ne merenje, a mreža između telefona i servera nije uključena.
 
 ---
 
@@ -235,6 +279,7 @@ Tri modula nose sistem:
           │         :core           │   Kotlin Multiplatform
           │  DTO klase + enumi      │   čist Kotlin kod; zavisi samo od
           │  BookingRules           │   kotlinx-serialization i -datetime
+          │  ResourceRules          │
           └───────────┬─────────────┘
                       │
           ┌───────────┴────────────┐
@@ -249,7 +294,7 @@ Tri modula nose sistem:
 
 `settings.gradle.kts` navodi i četvrti modul, `:app:shared`. Njega generiše zvanični
 Kotlin Multiplatform čarobnjak kao mesto za deljeni Compose UI. Ne koristi se ni posle
-faze 2: postoji samo Android klijent, pa svi ekrani žive u `:app:androidApp`, i deljenje
+faze 3: postoji samo Android klijent, pa svi ekrani žive u `:app:androidApp`, i deljenje
 korisničkog interfejsa između platformi još nema svrhu. Modul je kandidat za uklanjanje
 ako se drugi klijent ne uvede.
 
@@ -284,6 +329,18 @@ server serijalizuje, a klijent deserijalizuje. Na klijentu nije napisana nijedna
 paralelna definicija.
 
 <br clear="right">
+
+**`ResourceRules`** (faza 3) je drugi primer istog obrasca, za resurs koji administrator
+dodaje ili menja: naziv i lokacija su obavezni, sto ima tačno jedno mesto, sala od 2 do
+100, a oprema najviše 10 stavki. Forma na telefonu poziva `validate()` pre slanja i
+neispravan zahtev uopšte ne šalje; server istu funkciju poziva pre upisa. Kod greške
+imenuje polje (`NAME`, `LOCATION`, `CAPACITY`, `AMENITIES`) i isti je na obe strane, pa
+greška koju vrati server staje ispod istog polja kao greška sa telefona.
+
+Pre faze 3 server ovakve zahteve nije proveravao: sto sa osam mesta bio je prihvaćen, a
+predugačak naziv je odbijao tek Exposed, porukom na engleskom iz koje klijent ne zna koje
+polje da ispravi. Da forma zaista proverava na telefonu, provereno je zaustavljanjem
+servera: greška se i tada pojavila ispod polja (snimak u poglavlju 2).
 
 Testovi u `commonTest` izvršavaju se na svakom targetu, jedna provera dokazana istovremeno za server i za Android.
 
@@ -374,16 +431,16 @@ sa `import org.jetbrains.exposed.v1.core.*`.
 |---|---|---|---|
 | `GET` | `/health` | javno | Provera dostupnosti servera |
 | `POST` | `/api/auth/login` | javno | Prijava → JWT token i podaci o korisniku |
-| `GET` | `/api/resources` | javno | Lista resursa; filteri `type`, `location`, `activeOnly` |
+| `GET` | `/api/resources` | javno | Lista resursa; filteri `type`, `location`, `activeOnly` i `amenity` (može se ponoviti; resurs mora da ima svaku stavku) |
 | `GET` | `/api/resources/{id}` | javno | Jedan resurs |
 | `GET` | `/api/resources/{id}/availability?at=` | javno | Dnevna mreža slotova |
-| `POST` | `/api/resources` | admin | Novi resurs |
-| `PUT` | `/api/resources/{id}` | admin | Izmena resursa |
+| `POST` | `/api/resources` | admin | Novi resurs → `201` ili `400` sa kodom polja iz `ResourceRules` |
+| `PUT` | `/api/resources/{id}` | admin | Izmena resursa → `200` ili `400` sa kodom polja |
 | `POST` | `/api/resources/{id}/deactivate` | admin | Deaktivacija |
 | `POST` | `/api/resources/{id}/activate` | admin | Aktivacija |
 | `POST` | `/api/bookings` | korisnik | Nova rezervacija → `201` ili `409` |
 | `GET` | `/api/bookings/mine` | korisnik | Moje rezervacije |
-| `GET` | `/api/bookings` | admin | Globalni pregled; filteri `userId`, `resourceId` |
+| `GET` | `/api/bookings` | admin | Globalni pregled; filteri `userId`, `resourceId`; bez straničenja |
 | `DELETE` | `/api/bookings/{id}` | korisnik, admin | Otkazivanje (korisnik svoje, administrator bilo koje) |
 
 „Korisnik" znači bilo koji prijavljeni korisnik, uključujući administratora. Identitet i
@@ -399,13 +456,14 @@ ispravnim tokenom, ali bez uloge `ADMIN`, na administratorskoj ruti dobija `403`
 |---|---|---|---|
 | 1 | Vertikalni presek: deljeni DTO → Ktor ruta → baza → Compose lista | **urađeno** | `faza-1` |
 | 2 | Autentikacija (JWT + BCrypt), mreža slotova i rezervacija u aplikaciji, moje rezervacije i otkazivanje, prava vremenska zona | **urađeno** | `faza-2` |
-| 3 | Administratorski ekrani, filteri, globalni pregled | sledeće | |
-| 4 | Testovi konkurentnosti, merenja, PostgreSQL varijanta | | |
+| 3 | Pravila za resurs u `:core`, filteri po lokaciji i opremi, upravljanje resursima, forma za resurs, globalni pregled rezervacija | **urađeno** | `faza-3` |
+| 4 | Testovi konkurentnosti, merenja, PostgreSQL varijanta | sledeće | |
+| 5 | Ekran sa informacijama o zauzetosti na STB uređaju (PPuTViOS1) | obim se dogovara sa mentorom | |
 
 Svaka završena faza ima git oznaku, pa se stanje projekta na kraju faze dobija sa
-`git checkout faza-1` ili `git checkout faza-2`. Merenja nisu ostavljena za fazu 4: rade
-se od faze 1, posle svakog većeg koraka (poglavlje 4). Faza 4 ih zaokružuje poređenjem sa
-komparatorom i PostgreSQL varijantom.
+`git checkout faza-1`, `faza-2` ili `faza-3`. Merenja nisu ostavljena za fazu 4: rade
+se od faze 1, posle svakog većeg koraka (poglavlje 4). Faza 4 ih zaokružuje PostgreSQL
+varijantom.
 
 ---
 
@@ -431,7 +489,19 @@ Navedena svesno, kao predložene granice obima:
   platformski; selidba u `:core` traži `expect`/`actual` engine i ima smisla tek uz drugi
   klijent.
 - **Android klijent nema automatske testove.** Proveren je ručno, na fizičkom uređaju;
-  pravila koja koristi (`BookingRules`) pokrivena su testovima u `:core`.
+  pravila koja koristi (`BookingRules`, `ResourceRules`) pokrivena su testovima u `:core`.
+- **Globalni pregled rezervacija nema straničenje.** Vraća sve rezervacije, i istoriju.
+  Pri 10 000 rezervacija odgovor ima 2,6 MB i na serveru traje 32 ms; firma od 1 000
+  zaposlenih toliko ima posle dve radne nedelje. Za stvarnu upotrebu potrebno je
+  ograničenje po periodu ili straničenje ([merenje](docs/merenja/faza-3/README.md#62-globalni-pregled-bez-straničenja)).
+- **Korisnik ne dobija obaveštenje** kad administrator deaktivira resurs ili otkaže
+  njegovu rezervaciju, jer sistem obaveštenja ne postoji. Dijalozi u aplikaciji to
+  administratoru kažu pre potvrde.
+- **Resursi se ne brišu, nego deaktiviraju**, da bi rezervacije nad njima ostale u
+  istoriji. Resurs dodat greškom ostaje u bazi kao neaktivan.
+- **Lokacija je slobodan tekst**, a filter traži tačno poklapanje, pa su „Sprat 1" i
+  „Sprat 1 - Open space" dve različite lokacije. Forma nudi postojeće lokacije kao
+  čipove, da se ista lokacija ne unese u dva oblika.
 
 ---
 
@@ -448,8 +518,8 @@ projekta**, foldera u kome se nalazi `gradlew.bat`.
 
 ```bash
 # Testovi
-.\gradlew.bat :core:jvmTest     # pravila validacije (BookingRules), 13 testova
-.\gradlew.bat :server:test      # konkurentnost, 3 testa
+.\gradlew.bat :core:jvmTest     # pravila (BookingRules, ResourceRules), 21 test
+.\gradlew.bat :server:test      # konkurentnost i rute kroz HTTP, 11 testova
 ```
 
 Na Linux-u i macOS-u umesto `.\gradlew.bat` ide `./gradlew`.
