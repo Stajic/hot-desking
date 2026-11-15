@@ -3,7 +3,6 @@ package rs.ftn.hotdesk.server
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -46,13 +45,9 @@ class ConcurrencyTest {
 
     @BeforeTest
     fun setup() {
-        // Svaki test dobija svezu bazu u memoriji.
-        Database.connect(
-            url = "jdbc:h2:mem:test_${UUID.randomUUID()};MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
-            driver = "org.h2.Driver",
-            user = "sa",
-            password = ""
-        )
+        // Svaki test dobija svezu bazu: H2 u memoriji, ili pravi PostgreSQL
+        // kad se pokrece sa :server:testPostgres (TestDatabase).
+        TestDatabase.connect()
 
         transaction {
             SchemaUtils.create(Users, Resources, ResourceAmenities, Bookings, BookingSlots)

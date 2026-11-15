@@ -35,4 +35,19 @@ dependencies {
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
     testImplementation(libs.kotlinx.coroutinesTest)
+
+    // Pravi PostgreSQL za testove (faza 4): pokrece se iz binarnih fajlova preuzetih
+    // kao zavisnost, bez instalacije i bez Docker-a. BOM bira verziju PostgreSQL-a.
+    testImplementation(libs.zonky.embeddedPostgres)
+    testImplementation(platform(libs.zonky.postgresBinariesBom))
+}
+
+// Isti testovi nad pravim PostgreSQL-om (faza 4); `test` ostaje nad H2.
+// Bazu bira TestDatabase prema sistemskom svojstvu hotdesk.test.db.
+val testPostgres by tasks.registering(Test::class) {
+    description = "Pokrece testove servera nad pravim PostgreSQL-om (embedded-postgres)."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    systemProperty("hotdesk.test.db", "postgres")
 }

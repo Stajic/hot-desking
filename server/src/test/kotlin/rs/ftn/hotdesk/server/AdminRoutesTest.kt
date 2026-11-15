@@ -27,7 +27,6 @@ import rs.ftn.hotdesk.shared.model.ResourceType
 import rs.ftn.hotdesk.shared.model.UpsertResourceRequest
 import rs.ftn.hotdesk.shared.rules.BookingRules
 import rs.ftn.hotdesk.shared.rules.ResourceRules
-import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -36,7 +35,8 @@ import kotlin.test.assertEquals
  *
  * Za razliku od [ConcurrencyTest], koji poziva servis direktno, ovi testovi prolaze
  * kroz ceo server: rutiranje, JWT, proveru uloge, serijalizaciju i StatusPages.
- * Svaki test dobija svezu H2 bazu u memoriji, sa pocetnim podacima iz Seed-a.
+ * Svaki test dobija svezu bazu (TestDatabase: H2 u memoriji, ili pravi PostgreSQL
+ * sa :server:testPostgres), sa pocetnim podacima iz Seed-a.
  *
  * Tela zahteva i odgovora se serijalizuju rucno, preko kotlinx.serialization, da
  * test ne bi trazio novu zavisnost (ContentNegotiation za klijent).
@@ -48,17 +48,20 @@ class AdminRoutesTest {
     private val resourceList = ListSerializer(ResourceDto.serializer())
     private val bookingList = ListSerializer(BookingDto.serializer())
 
-    private fun config() = MapApplicationConfig(
-        "storage.driver" to "org.h2.Driver",
-        "storage.jdbcUrl" to "jdbc:h2:mem:admin_${UUID.randomUUID()};MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
-        "storage.user" to "sa",
-        "storage.password" to "",
-        "jwt.secret" to "testna-tajna",
-        "jwt.issuer" to "hot-desking",
-        "jwt.audience" to "hot-desking-klijenti",
-        "jwt.realm" to "hot-desking",
-        "jwt.validityHours" to "1"
-    )
+    private fun config(): MapApplicationConfig {
+        val db = TestDatabase.fresh()
+        return MapApplicationConfig(
+            "storage.driver" to db.driver,
+            "storage.jdbcUrl" to db.url,
+            "storage.user" to db.user,
+            "storage.password" to db.password,
+            "jwt.secret" to "testna-tajna",
+            "jwt.issuer" to "hot-desking",
+            "jwt.audience" to "hot-desking-klijenti",
+            "jwt.realm" to "hot-desking",
+            "jwt.validityHours" to "1"
+        )
+    }
 
     private fun serverTest(block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
         environment { config = config() }
