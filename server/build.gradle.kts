@@ -23,6 +23,9 @@ dependencies {
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.h2)
+    // PostgreSQL drajver (faza 4). Kod ga ne poziva direktno - JDBC ga ucitava po
+    // imenu klase iz konfiguracije - pa je potreban samo u vreme izvrsavanja.
+    runtimeOnly(libs.postgresql)
 
     // --- autentikacija, faza 2 ---
     implementation(libs.ktor.serverAuth)
