@@ -51,3 +51,15 @@ val testPostgres by tasks.registering(Test::class) {
     classpath = sourceSets.test.get().runtimeClasspath
     systemProperty("hotdesk.test.db", "postgres")
 }
+
+// Negativni prolaz (faza 4): koliko rezervacija istog termina prodje kroz naivnu
+// proveru-pa-upis bez jedinstvenog indeksa. Merenje, ne test - trka je nepredvidiva.
+// Pokretanje: .\gradlew.bat :server:negativniProlaz [-Pbaza=postgres]
+val negativniProlaz by tasks.registering(JavaExec::class) {
+    description = "Meri TOCTOU: koliko rezervacija istog termina prodje bez jedinstvenog indeksa."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "rs.ftn.hotdesk.server.NegativniProlazKt"
+    systemProperty("hotdesk.test.db", providers.gradleProperty("baza").getOrElse("h2"))
+    args(layout.buildDirectory.dir("negativni-prolaz").get().asFile.absolutePath)
+}

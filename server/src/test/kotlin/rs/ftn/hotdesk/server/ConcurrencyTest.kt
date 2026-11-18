@@ -28,13 +28,14 @@ import kotlin.test.assertEquals
  * N korisnika istovremeno trazi isti termin nad istim resursom.
  * Ocekivanje: tacno jedan prolazi, ostali dobijaju SlotTaken (HTTP 409).
  *
- * Kako se koristi na odbrani / na vezbama:
- *  1. Zakomentarisati liniju `uniqueIndex("uq_resource_slot", ...)` u Tables.kt
- *     i umesto direktnog upisa uraditi SELECT-pa-INSERT u BookingService.create.
- *     Test pada - prolazi vise rezervacija. To je TOCTOU u praksi.
- *  2. Vratiti jedinstveni indeks. Test prolazi.
+ * Dva prolaza, bez ikakve izmene produkcionog koda:
+ *  1. Bez jedinstvenog indeksa, sa provera-pa-upis logikom: program NegativniProlaz
+ *     (.\gradlew.bat :server:negativniProlaz [-Pbaza=postgres]) meri koliko
+ *     rezervacija istog termina tada prodje. To je TOCTOU u praksi.
+ *  2. Sa jedinstvenim indeksom: ovaj test, nad H2 (:server:test) i nad pravim
+ *     PostgreSQL-om (:server:testPostgres). Prolazi tacno jedna.
  *
- * Razlika izmedju ta dva pokretanja je poglavlje sa rezultatima.
+ * Razlika izmedju ta dva prolaza je poglavlje sa rezultatima.
  */
 class ConcurrencyTest {
 
