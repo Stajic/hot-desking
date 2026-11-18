@@ -155,7 +155,8 @@ zauzetost uopšte: piše odmah i hvata izuzetak narušavanja ograničenja, koji 
 Prednosti:
 
 - nema zaključavanja i nema petlje ponovnog pokušaja
-- radi identično na H2 i na PostgreSQL-u
+- radi identično na H2 i na PostgreSQL-u (provereno u fazi 4: isti testovi prolaze i nad
+  PostgreSQL-om 18.6)
 - delimično preklapanje (09:00–10:00 naspram 09:30–10:30) pada isto kao potpuno
 - otkazivanje briše redove iz `booking_slots` i oslobađa termin, dok zaglavlje ostaje
   kao istorija, bez potrebe za parcijalnim indeksima, koje H2 ne podržava
@@ -163,22 +164,36 @@ Prednosti:
 ### Merljiv rezultat
 
 `server/src/test/kotlin/.../ConcurrencyTest.kt` ispaljuje 50 paralelnih zahteva za isti
-termin i tvrdi da prolazi tačno jedan. Test se pokreće u dva prolaza:
+termin i tvrdi da prolazi tačno jedan. Rezultat ima dva prolaza, oba bez ikakve izmene
+produkcionog koda:
 
-1. bez jedinstvenog indeksa, sa provera-pa-upis logikom → pada, prolazi više rezervacija
-2. sa jedinstvenim indeksom → prolazi
+1. **bez jedinstvenog indeksa**, sa provera-pa-upis logikom: program `NegativniProlaz`
+   (`.\gradlew.bat :server:negativniProlaz`) meri koliko rezervacija istog termina tada prođe;
+2. **sa jedinstvenim indeksom**: sam test, nad H2 i nad pravim PostgreSQL-om 18.6.
 
-Izmereno, drugi prolaz, H2 baza u memoriji:
+Izmereno, 50 istovremenih zahteva za isti termin, 20 rundi:
+
+| | H2 | PostgreSQL 18.6 |
+|---|---|---|
+| Bez indeksa: rundi sa duplom rezervacijom | 20 / 20 | 20 / 20 |
+| Bez indeksa: prihvaćeno od 50 (medijana, max) | 14, 17 | 13, 39 |
+| Sa indeksom: prihvaćeno | tačno 1 u svakoj rundi | tačno 1 u svakoj rundi |
 
 ```
 Paralelnih zahteva: 50 | prihvaceno: 1 | odbijeno (409): 49
 ```
 
+Bez indeksa je merena čista trka, u kojoj svih 50 zahteva kreće istovremeno. Onako kako
+server radi danas, naivna varijanta propušta duple rezervacije u 20 od 20 rundi na H2 i u
+11 od 20 na PostgreSQL-u, gde sporo otvaranje veze razvlači zahteve u vremenu
+([izveštaj faze 4](docs/merenja/faza-4/README.md#3-negativni-prolaz-toctou-bez-jedinstvenog-indeksa)).
+
 Uz taj test prolaze i `delimicno_preklapanje_takodje_pada` (09:00–10:00 naspram 09:30–10:30,
 dele tačno jedan slot) i `otkazana_rezervacija_oslobadja_termin`. Od faze 3 `:server` ima i
 osam testova koji idu kroz ceo server preko HTTP-a (`AdminRoutesTest`): uloge, pravila za
 resurs, deaktivacija i filter po opremi. Ukupno 11 testova u `:server` i 21 u `:core`
-(13 `BookingRules`, 8 `ResourceRules`). Svi prolaze.
+(13 `BookingRules`, 8 `ResourceRules`). Svi prolaze, a testovi `:server` i nad H2 i nad
+PostgreSQL-om.
 
 ### Iz ugla korisnika
 
@@ -208,7 +223,7 @@ kao jednokratna provera na kraju. Uslovi su isti u svakoj tački: ista mašina, 
 opterećenje i `jcmd` za memoriju, samostalni JAR umesto pokretanja kroz Gradle,
 zagrevanje koje se odbacuje. Svaki izveštaj beleži okruženje, metodologiju i ograničenja.
 Pred četvrtu tačku okruženje je promenjeno, pa je u istoj sesiji izmerena i prethodna
-verzija, kao kontrola.
+verzija, kao kontrola. Peta tačka meri isti server nad H2 i nad pravim PostgreSQL-om.
 
 | Tačka merenja | Commit | Izveštaj |
 |---|---|---|
@@ -216,29 +231,38 @@ verzija, kao kontrola.
 | Posle autentikacije | `2026226` | [`docs/merenja/faza-2-korak-1`](docs/merenja/faza-2-korak-1/README.md) |
 | Kraj faze 2 | `60daee4` | [`docs/merenja/faza-2-kraj`](docs/merenja/faza-2-kraj/README.md) |
 | Kraj faze 3 | `9d3f81d` | [`docs/merenja/faza-3`](docs/merenja/faza-3/README.md) |
+| Faza 4: H2 i PostgreSQL | `967999f` | [`docs/merenja/faza-4`](docs/merenja/faza-4/README.md) |
 
-| | Faza 1 | Posle autentikacije | Kraj faze 2 | Kraj faze 3 |
-|---|---|---|---|---|
-| Topao start (do prvog odgovora) | 1 764 ms | 1 761 ms | 1 770 ms | 1 744 ms |
-| Hladan start (prazna baza) | 1 778 ms | 2 292 ms | 2 316 ms | 2 287 ms |
-| Memorija stvarno zauzeta posle GC-a | 15,1 MB | 17,0 MB | 17,0 MB | 17,2 MB |
-| `GET /api/resources`: zahteva/s, medijana | 3 250, 2,90 ms | 3 326, 2,85 ms | 3 305, 2,84 ms | 2 790, 3,44 ms ¹ |
-| `GET /availability`: zahteva/s, medijana | 3 161, 2,97 ms | 3 312, 2,82 ms | 3 317, 2,79 ms | 2 798, 3,38 ms ¹ |
-| `GET /api/bookings/mine`: medijana | ruta nije postojala | 3,40 ms | 3,29 ms | 3,54 ms |
-| `POST /api/auth/login`: medijana | ruta nije postojala | 427 ms | 440 ms | 399 ms |
-| Samostalni JAR | 20,5 MB | 27,3 MB | 27,3 MB | 27,3 MB |
-| Neuspelih zahteva | 0 / 192 365 | 0 / 281 562 | 0 / 283 655 | 0 / 1 276 806 ² |
+| | Faza 1 | Posle autentikacije | Kraj faze 2 | Kraj faze 3 | Faza 4: H2 / PostgreSQL |
+|---|---|---|---|---|---|
+| Topao start (do prvog odgovora) | 1 764 ms | 1 761 ms | 1 770 ms | 1 744 ms | 1 767 / 1 745 ms |
+| Hladan start (prazna baza) | 1 778 ms | 2 292 ms | 2 316 ms | 2 287 ms | 2 300 / 2 767 ms |
+| Memorija stvarno zauzeta posle GC-a | 15,1 MB | 17,0 MB | 17,0 MB | 17,2 MB | 17,2 / 14,1 MB ³ |
+| `GET /api/resources`: zahteva/s, medijana | 3 250, 2,90 ms | 3 326, 2,85 ms | 3 305, 2,84 ms | 2 790, 3,44 ms ¹ | 3 295, 2,87 ms / 94, 98,85 ms |
+| `GET /availability`: zahteva/s, medijana | 3 161, 2,97 ms | 3 312, 2,82 ms | 3 317, 2,79 ms | 2 798, 3,38 ms ¹ | 3 354, 2,80 ms / 91, 102,35 ms |
+| `GET /api/bookings/mine`: medijana | ruta nije postojala | 3,40 ms | 3,29 ms | 3,54 ms | 2,93 / 108,83 ms |
+| `POST /api/auth/login`: medijana | ruta nije postojala | 427 ms | 440 ms | 399 ms | 318 / 434 ms |
+| Samostalni JAR | 20,5 MB | 27,3 MB | 27,3 MB | 27,3 MB | 28,7 MB ⁴ |
+| Neuspelih zahteva | 0 / 192 365 | 0 / 281 562 | 0 / 283 655 | 0 / 1 276 806 ² | 0 / 933 059 |
 
 ¹ Niže nego ranije zbog promene okruženja, ne koda: kontrolni JAR faze 2, izmeren u istoj
 sesiji neposredno posle, daje 2 787 i 2 793 zahteva/s.
 ² Uključuje kontrolna merenja i nove rute.
+³ Samo server; nad PostgreSQL-om podaci su u zasebnom procesu baze, koji drži još 31,7 MB.
+⁴ PostgreSQL JDBC drajver, +1,4 MB.
 
 AMD Ryzen 7 5800H, 13,9 GB RAM, Windows 11, JDK 21, 10 istovremenih korisnika, preko `localhost`.
 
 **Glavni nalazi:**
 
-- **Odziv i stabilnost.** Server na razvojnom laptopu opslužuje oko 2 800–3 300 zahteva u
-  sekundi uz medijanu ispod 4 ms. Nijedan od oko 2 034 000 zahteva kroz četiri merenja nije pao.
+- **Odziv i stabilnost.** Server nad H2 na razvojnom laptopu opslužuje oko 2 800–3 300
+  zahteva u sekundi uz medijanu ispod 4 ms. Nijedan od oko 2 967 000 zahteva kroz pet
+  merenja nije pao.
+- **PostgreSQL otkriva da server nema pool veza.** Nad PostgreSQL-om propusnost je oko 35
+  puta manja (oko 90 zahteva/s, medijana oko 100 ms). Uzrok je izmeren direktno: svaka
+  transakcija otvara novu vezu, a otvaranje veze sa PostgreSQL-om traje 41,5 ms, dok isti
+  upit na otvorenoj vezi traje 0,29 ms. H2 radi u procesu servera, pa je ovaj trošak do
+  faze 4 bio nevidljiv. Pool veza je prva izmena koju ovo predlaže.
 - **Nove funkcije bez merljivog troška.** Faza 3 i kontrolna faza 2, izmerene jedna za
   drugom, razlikuju se za manje od 1 %. Filter po opremi smanjuje propusnost liste za 1,4 %.
 - **Memorija.** Aplikacija posle sakupljanja smeća drži 15–17 MB. Radni skup od oko
@@ -252,7 +276,6 @@ AMD Ryzen 7 5800H, 13,9 GB RAM, Windows 11, JDK 21, 10 istovremenih korisnika, p
 - **Ekosistem.** Autentikacija je donela 6,8 MB tranzitivnih zavisnosti (Guava, Jackson,
   Ktor HTTP klijent), od kojih se nijedna u projektu ne koristi. Ktor-ova JWT podrška je
   tanak omotač oko Java biblioteke, koja sa sobom donosi deo Java ekosistema.
-
 - **Globalni pregled bez straničenja raste linearno.** Pri 100, 1 000 i 10 000 rezervacija
   odgovor jednom administratoru traje 2,2, 4,5 i 32 ms, a veličina odgovora je 26 KB,
   263 KB i 2,6 MB. To je jedino mesto koje sa rastom podataka postaje problem
@@ -266,7 +289,9 @@ sekundi**, a server ih obrađuje oko **2 800**; prijava traži oko 1, a server i
 oko 23. Uobičajeni zahtevi traju na serveru 3–4 ms, daleko ispod 0,1 s, granice do koje
 korisnik doživljava odgovor kao trenutan (Nielsen, *Usability Engineering*, 1993).
 Pretpostavke i proračun su u [izveštaju faze 3](docs/merenja/faza-3/README.md#7-da-li-je-to-dovoljno-zahtevi-iz-domena);
-to je model, ne merenje, a mreža između telefona i servera nije uključena.
+to je model, ne merenje, a mreža između telefona i servera nije uključena. Nad
+PostgreSQL-om, i bez pool-a veza, rezerva je oko 13 puta, a odziv oko granice od 0,1 s
+([izveštaj faze 4](docs/merenja/faza-4/README.md#9-da-li-je-postgresql-varijanta-dovoljna)).
 
 ---
 
@@ -395,8 +420,9 @@ znakova i staje u postojeću kolonu `varchar(100)`, pa šema nije menjana.
 | Autentikacija | JWT (HS256) za zahteve, BCrypt za lozinke |
 | Datum i vreme | kotlinx-datetime, vremenska zona `Europe/Belgrade` |
 
-Baza se menja izmenom četiri linije u `server/src/main/resources/application.conf`; nijedna
-linija aplikativnog koda ne zna koja je ispod. H2 je podrazumevan jer ne zahteva instalaciju.
+Baza se bira promenljivama okruženja `DB_DRIVER`, `DB_URL`, `DB_USER` i `DB_PASSWORD`
+(poglavlje 11); bez njih server radi nad H2, koji ne zahteva instalaciju. Nijedna linija
+aplikativnog koda ne zna koja je baza ispod, a isti testovi prolaze nad obe.
 
 Verzije su zaključane u `gradle/libs.versions.toml`:
 
@@ -408,6 +434,8 @@ Verzije su zaključane u `gradle/libs.versions.toml`:
 | Ktor (server i klijent) | 3.5.2 |
 | Exposed | 1.0.0 |
 | H2 | 2.3.232 |
+| PostgreSQL JDBC drajver | 42.7.14 |
+| embedded-postgres (testovi i merenje) | 2.2.2, sa PostgreSQL-om 18.6 |
 | kotlinx.serialization | 1.11.0 |
 | kotlinx-datetime | 0.8.0 |
 | BCrypt (`at.favre.lib:bcrypt`) | 0.10.2 |
@@ -457,13 +485,12 @@ ispravnim tokenom, ali bez uloge `ADMIN`, na administratorskoj ruti dobija `403`
 | 1 | Vertikalni presek: deljeni DTO → Ktor ruta → baza → Compose lista | **urađeno** | `faza-1` |
 | 2 | Autentikacija (JWT + BCrypt), mreža slotova i rezervacija u aplikaciji, moje rezervacije i otkazivanje, prava vremenska zona | **urađeno** | `faza-2` |
 | 3 | Pravila za resurs u `:core`, filteri po lokaciji i opremi, upravljanje resursima, forma za resurs, globalni pregled rezervacija | **urađeno** | `faza-3` |
-| 4 | Testovi konkurentnosti, merenja, PostgreSQL varijanta | sledeće | |
-| 5 | Ekran sa informacijama o zauzetosti na STB uređaju (PPuTViOS1) | obim se dogovara sa mentorom | |
+| 4 | PostgreSQL varijanta: testovi i konkurentnost nad pravim PostgreSQL-om, negativni prolaz bez indeksa, merenje H2 naspram PostgreSQL-a | **urađeno** | `faza-4` |
+| 5 | Ekran sa informacijama o zauzetosti na STB uređaju (PPuTViOS1): samo prikaz, bez rezervisanja | sledeće | |
 
 Svaka završena faza ima git oznaku, pa se stanje projekta na kraju faze dobija sa
-`git checkout faza-1`, `faza-2` ili `faza-3`. Merenja nisu ostavljena za fazu 4: rade
-se od faze 1, posle svakog većeg koraka (poglavlje 4). Faza 4 ih zaokružuje PostgreSQL
-varijantom.
+`git checkout faza-1` … `faza-4`. Merenja nisu ostavljena za kraj: rade se od faze 1,
+posle svakog većeg koraka (poglavlje 4).
 
 ---
 
@@ -488,6 +515,13 @@ Navedena svesno, kao predložene granice obima:
   pravila, ali ne i mrežni sloj. Razlog je što `ApiClient` koristi OkHttp engine, koji je
   platformski; selidba u `:core` traži `expect`/`actual` engine i ima smisla tek uz drugi
   klijent.
+- **Server nema pool veza.** Svaka transakcija otvara novu vezu sa bazom. Nad H2 to skoro
+  ništa ne košta, a nad PostgreSQL-om na Windows-u 41,5 ms, pa je propusnost oko 35 puta
+  manja ([merenje](docs/merenja/faza-4/README.md#6-uzrok-cena-otvaranja-veze)). Pool veza
+  nije uveden.
+- **Odbijena rezervacija se izvršava tri puta.** Exposed posle greške baze ponavlja
+  transakciju (podrazumevano tri pokušaja), pa zahtev za zauzet termin pre odgovora `409`
+  tri puta pokušava upis. Rezultat je tačan, ali baza pod sukobom radi trostruki posao.
 - **Android klijent nema automatske testove.** Proveren je ručno, na fizičkom uređaju;
   pravila koja koristi (`BookingRules`, `ResourceRules`) pokrivena su testovima u `:core`.
 - **Globalni pregled rezervacija nema straničenje.** Vraća sve rezervacije, i istoriju.
@@ -518,11 +552,34 @@ projekta**, foldera u kome se nalazi `gradlew.bat`.
 
 ```bash
 # Testovi
-.\gradlew.bat :core:jvmTest     # pravila (BookingRules, ResourceRules), 21 test
-.\gradlew.bat :server:test      # konkurentnost i rute kroz HTTP, 11 testova
+.\gradlew.bat :core:jvmTest           # pravila (BookingRules, ResourceRules), 21 test
+.\gradlew.bat :server:test            # konkurentnost i rute kroz HTTP, 11 testova, nad H2
+.\gradlew.bat :server:testPostgres    # isti testovi nad PostgreSQL-om 18.6
+.\gradlew.bat :server:negativniProlaz # TOCTOU bez indeksa; merenje, ne test
 ```
 
 Na Linux-u i macOS-u umesto `.\gradlew.bat` ide `./gradlew`.
+
+`testPostgres` pokreće pravi PostgreSQL bez instalacije i bez Docker-a (embedded-postgres).
+Pri prvom pokretanju Gradle preuzima oko 121 MB PostgreSQL binarnih fajlova, za Windows,
+Linux i Intel Mac; Mac sa Apple čipom nije pokriven podrazumevanim paketom. Na Windows-u
+je potreban Microsoft Visual C++ Redistributable 14.40 ili noviji; sa starijim PostgreSQL
+pri pokretanju pada greškom `0xC0000005`.
+
+**Server nad PostgreSQL-om** se bira promenljivama okruženja, bez izmene ijednog fajla.
+Baza mora da postoji; šemu i početne podatke server upisuje sam:
+
+```bash
+$env:DB_DRIVER   = "org.postgresql.Driver"
+$env:DB_URL      = "jdbc:postgresql://localhost:5432/hotdesk"
+$env:DB_USER     = "postgres"
+$env:DB_PASSWORD = "<lozinka>"
+.\gradlew.bat :server:run
+```
+
+Za probu bez instalacije, `.\gradlew.bat :server:postgresZaMerenje` pokreće PostgreSQL
+18.6 na portu 54320, sa praznim bazama `hotdesk_1` … `hotdesk_10` (korisnik `postgres`,
+bez lozinke).
 
 Pri prvom pokretanju server upisuje početne podatke, uključujući dva demo naloga:
 
