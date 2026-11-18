@@ -63,3 +63,12 @@ val negativniProlaz by tasks.registering(JavaExec::class) {
     systemProperty("hotdesk.test.db", providers.gradleProperty("baza").getOrElse("h2"))
     args(layout.buildDirectory.dir("negativni-prolaz").get().asFile.absolutePath)
 }
+
+// PostgreSQL za merenje servera (faza 4): isti embedded PostgreSQL kao u testovima,
+// ali kao zaseban proces na portu 54320, dok se zadatak ne zaustavi.
+val postgresZaMerenje by tasks.registering(JavaExec::class) {
+    description = "Pokrece PostgreSQL 18.6 na portu 54320 sa praznim bazama za merenje."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "rs.ftn.hotdesk.server.PostgresZaMerenjeKt"
+}

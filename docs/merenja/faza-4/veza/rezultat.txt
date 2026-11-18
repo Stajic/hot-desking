@@ -1,0 +1,3 @@
+otvaranje nove veze: medijana 41.52 ms (min 40.18, max 154.62)
+upit na novoj vezi: medijana 2.89 ms
+isti upit na otvorenoj vezi: medijana 0.29 ms

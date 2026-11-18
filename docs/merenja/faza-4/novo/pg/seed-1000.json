@@ -1,0 +1,192 @@
+{
+  "metrics": {
+    "iteration_duration": {
+      "contains": "time",
+      "values": {
+        "med": 110.19835,
+        "p(99)": 217.745397,
+        "max": 241.0694,
+        "avg": 116.09394422222223
+      },
+      "type": "trend"
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 900
+      }
+    },
+    "iterations": {
+      "contains": "default",
+      "values": {
+        "count": 900,
+        "rate": 85.86598228298566
+      },
+      "type": "counter"
+    },
+    "vus_max": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "value": 10,
+        "min": 10,
+        "max": 10
+      }
+    },
+    "checks": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 1,
+        "passes": 900,
+        "fails": 0
+      }
+    },
+    "http_req_connecting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.017128888888888895,
+        "med": 0,
+        "p(99)": 1.5416,
+        "max": 1.5416
+      }
+    },
+    "http_reqs": {
+      "values": {
+        "count": 900,
+        "rate": 85.86598228298566
+      },
+      "type": "counter",
+      "contains": "default"
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 115.64566711111115,
+        "med": 109.91125,
+        "p(99)": 217.33926499999998,
+        "max": 241.0694
+      }
+    },
+    "vus": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "min": 10,
+        "max": 10,
+        "value": 10
+      }
+    },
+    "http_req_waiting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 114.60076955555539,
+        "med": 109.01939999999999,
+        "p(99)": 215.77372,
+        "max": 240.3369
+      }
+    },
+    "http_req_tls_handshaking": {
+      "values": {
+        "avg": 0,
+        "med": 0,
+        "p(99)": 0,
+        "max": 0
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "http_req_sending": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(99)": 0.694187,
+        "max": 2.0127,
+        "avg": 0.057432222222222225,
+        "med": 0
+      }
+    },
+    "http_req_receiving": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.9874653333333335,
+        "med": 0.5626500000000001,
+        "p(99)": 6.154958999999999,
+        "max": 10.8181
+      }
+    },
+    "http_req_blocked": {
+      "values": {
+        "max": 1.5416,
+        "avg": 0.02356100000000001,
+        "med": 0,
+        "p(99)": 1.5416
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "http_req_duration{expected_response:true}": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 109.91125,
+        "p(99)": 217.33926499999998,
+        "max": 241.0694,
+        "avg": 115.64566711111115
+      }
+    },
+    "data_sent": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 461700,
+        "rate": 44049.24891117164
+      }
+    },
+    "data_received": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 310530,
+        "rate": 29626.626087039484
+      }
+    }
+  },
+  "root_group": {
+    "name": "",
+    "path": "",
+    "id": "d41d8cd98f00b204e9800998ecf8427e",
+    "groups": [],
+    "checks": [
+        {
+          "id": "79ffd230a8c8ec2016a9cf86821e71ea",
+          "passes": 900,
+          "fails": 0,
+          "name": "status 201",
+          "path": "::status 201"
+        }
+      ]
+  },
+  "options": {
+    "summaryTrendStats": [
+      "avg",
+      "med",
+      "p(99)",
+      "max"
+    ],
+    "summaryTimeUnit": "",
+    "noColor": true
+  },
+  "state": {
+    "isStdErrTTY": false,
+    "testRunDurationMs": 10481.45,
+    "isStdOutTTY": false
+  }
+}
