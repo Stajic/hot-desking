@@ -2,9 +2,10 @@
 
 Klijent-server sistem za rezervaciju deljenih resursa, radnih stolova i sala za sastanke,
 u kompanijskom okruženju. Zaposleni pretražuju slobodne termine i rezervišu ih, a
-administrator upravlja time koji su resursi uopšte na raspolaganju. Realizovan je u Kotlin
-Multiplatform arhitekturi, sa deljenim modelom podataka i pravilima između Ktor servera
-i Android klijenta.
+administrator upravlja time koji su resursi uopšte na raspolaganju, a ekran pored sale
+pokazuje da li je sala slobodna. Realizovan je u Kotlin Multiplatform arhitekturi, sa
+deljenim modelom podataka i pravilima između Ktor servera i dva klijenta: Android
+aplikacije za telefon i ekrana na STB uređaju sa Android TV-om.
 
 ---
 
@@ -27,6 +28,12 @@ Sistem razlikuje dve uloge sa različitim pogledom na iste podatke.
 - **Pregled dostupnosti:** dnevna mreža slobodnih i zauzetih termina za izabrani resurs
 - **Rezervacija:** zauzimanje slobodnog termina
 - **Moje rezervacije:** pregled aktivnih i isteklih, sa mogućnošću otkazivanja
+
+### Ekran pored sale
+
+- **Zauzetost sale:** da li je slobodna, do kada, sledeće zauzeće i današnji raspored, na
+  televizoru pored vrata (STB uređaj sa Android TV-om). Samo prikaz, bez prijave i bez
+  rezervisanja.
 
 ### Dve odluke
 
@@ -73,6 +80,30 @@ primenjuje pre upisa: greška sa srednjeg snimka nastala je dok je server bio za
 dakle na samom telefonu (poglavlje 5). „Sve rezervacije" je globalni pregled sa
 filterima po korisniku i resursu, u kome administrator može da otkaže bilo koju aktivnu
 rezervaciju.
+
+### Ekran pored sale (Android TV)
+
+| TV pokretač | Izbor sale |
+|---|---|
+| <img src="docs/tv-pokretac.png" alt="Aplikacija u TV pokretaču" width="400"> | <img src="docs/tv-izbor-sale.png" alt="Izbor sale" width="400"> |
+
+| Slobodno | Zauzeto, bez veze sa serverom |
+|---|---|
+| <img src="docs/tv-slobodno.png" alt="Sala slobodna do 18:30" width="400"> | <img src="docs/tv-zauzeto-bez-veze.png" alt="Sala zauzeta do 18:30, bez veze sa serverom" width="400"> |
+
+Drugi klijent je ekran na STB uređaju sa Android TV-om, postavljen pored sale. Pojavljuje
+se u TV pokretaču i njime se upravlja samo daljinskim: pri prvom pokretanju strelicama se
+bira sala, a izbor se pamti na uređaju. Ekran zatim stalno prikazuje da li je sala
+slobodna, do kada, sledeće zauzeće i današnji raspored od 24 slota. Ne traži prijavu i ne
+rezerviše: koristi iste dve javne rute kao lista resursa i mreža slotova na telefonu.
+
+Mreža se osvežava na 30 s, a status se računa svake sekunde iz sata uređaja. Zato se
+„SLOBODNO" menja u „ZAUZETO" tačno na granici termina, i kad server ne radi: donji desni
+snimak je napravljen u 18:00, dva minuta pošto je server zaustavljen. Bez veze ekran
+zadržava poslednje podatke, uz oznaku vremena. Snimci su sa Android TV emulatora u
+rezoluciji 1080p; provera je opisana u [izveštaju faze 5](docs/merenja/faza-5/README.md#4-provera-rada).
+
+### Odgovor servera
 
 Odgovor servera na `GET /api/resources`, skraćen na tri resursa:
 
@@ -191,9 +222,9 @@ server radi danas, naivna varijanta propušta duple rezervacije u 20 od 20 rundi
 Uz taj test prolaze i `delimicno_preklapanje_takodje_pada` (09:00–10:00 naspram 09:30–10:30,
 dele tačno jedan slot) i `otkazana_rezervacija_oslobadja_termin`. Od faze 3 `:server` ima i
 osam testova koji idu kroz ceo server preko HTTP-a (`AdminRoutesTest`): uloge, pravila za
-resurs, deaktivacija i filter po opremi. Ukupno 11 testova u `:server` i 21 u `:core`
-(13 `BookingRules`, 8 `ResourceRules`). Svi prolaze, a testovi `:server` i nad H2 i nad
-PostgreSQL-om.
+resurs, deaktivacija i filter po opremi. Ukupno 11 testova u `:server` i 29 u `:core`
+(13 `BookingRules`, 8 `ResourceRules`, 8 `RoomStatus`). Svi prolaze, a testovi `:server` i
+nad H2 i nad PostgreSQL-om.
 
 ### Iz ugla korisnika
 
@@ -224,6 +255,9 @@ opterećenje i `jcmd` za memoriju, samostalni JAR umesto pokretanja kroz Gradle,
 zagrevanje koje se odbacuje. Svaki izveštaj beleži okruženje, metodologiju i ograničenja.
 Pred četvrtu tačku okruženje je promenjeno, pa je u istoj sesiji izmerena i prethodna
 verzija, kao kontrola. Peta tačka meri isti server nad H2 i nad pravim PostgreSQL-om.
+Faza 5 server ne menja, pa nema novu tačku merenja servera; njen
+[izveštaj](docs/merenja/faza-5/README.md) meri udeo deljenog koda i proverava TV ekran
+(poglavlje 5).
 
 | Tačka merenja | Commit | Izveštaj |
 |---|---|---|
@@ -292,36 +326,50 @@ Pretpostavke i proračun su u [izveštaju faze 3](docs/merenja/faza-3/README.md#
 to je model, ne merenje, a mreža između telefona i servera nije uključena. Nad
 PostgreSQL-om, i bez pool-a veza, rezerva je oko 13 puta, a odziv oko granice od 0,1 s
 ([izveštaj faze 4](docs/merenja/faza-4/README.md#9-da-li-je-postgresql-varijanta-dovoljna)).
+Ekrani pored sala tome dodaju malo: 20 ekrana, svaki sa jednim zahtevom na 30 s, šalje
+0,67 zahteva u sekundi, ravnomerno tokom dana
+([izveštaj faze 5](docs/merenja/faza-5/README.md#5-opterećenje-servera)).
 
 ---
 
 ## 5. Arhitektura
 
-Tri modula nose sistem:
+Pet modula nosi sistem:
 
 ```
-          ┌─────────────────────────┐
-          │         :core           │   Kotlin Multiplatform
-          │  DTO klase + enumi      │   čist Kotlin kod; zavisi samo od
-          │  BookingRules           │   kotlinx-serialization i -datetime
-          │  ResourceRules          │
-          └───────────┬─────────────┘
-                      │
-          ┌───────────┴────────────┐
-          │                        │
-  ┌───────▼────────┐     ┌─────────▼─────────┐
-  │    :server     │     │ :app:androidApp   │
-  │  Ktor Server   │     │  Jetpack Compose  │
-  │  Exposed ORM   │◄────┤  Ktor Client      │
-  │  H2 / Postgres │ HTTP│  ViewModel + UDF  │
-  └────────────────┘ JSON└───────────────────┘
+                     ┌──────────────────────┐
+                     │        :core         │   Kotlin Multiplatform
+                     │  DTO klase + enumi   │   čist Kotlin kod; zavisi samo od
+                     │  BookingRules        │   kotlinx-serialization i -datetime
+                     │  ResourceRules       │
+                     │  RoomStatus          │
+                     └──────────┬───────────┘
+                                │
+              ┌─────────────────┴──────────────────┐
+              │                                    │
+     ┌────────▼────────┐                  ┌────────▼────────┐
+     │     :server     │                  │   :app:shared   │   deljeni klijentski sloj
+     │   Ktor Server   │                  │   Ktor Client   │
+     │   Exposed ORM   │                  │   PublicApi     │
+     │  H2 / Postgres  │                  │   TimeFormat    │
+     └────────▲────────┘                  └───┬─────────┬───┘
+              │                               │         │
+              │                  ┌────────────▼──┐   ┌──▼────────────┐
+              │    HTTP, JSON    │:app:androidApp│   │  :app:tvApp   │
+              ├──────────────────┤    telefon    │   │  Android TV   │
+              │                  │    Compose    │   │    Compose    │
+              │                  └───────────────┘   └───────┬───────┘
+              │                                              │
+              └──────────────────────────────────────────────┘
 ```
 
-`settings.gradle.kts` navodi i četvrti modul, `:app:shared`. Njega generiše zvanični
-Kotlin Multiplatform čarobnjak kao mesto za deljeni Compose UI. Ne koristi se ni posle
-faze 3: postoji samo Android klijent, pa svi ekrani žive u `:app:androidApp`, i deljenje
-korisničkog interfejsa između platformi još nema svrhu. Modul je kandidat za uklanjanje
-ako se drugi klijent ne uvede.
+`:app:shared` je od faze 5 deljeni klijentski sloj: podešavanja HTTP klijenta (engine
+preko `expect`/`actual`, OkHttp na Androidu), `PublicApi` sa javnim rutama i `TimeFormat`,
+pa oba klijenta prikazuju vreme na isti način. Do faze 5 u njemu je bio samo primer koji
+generiše Kotlin Multiplatform čarobnjak, i nije se koristio. Ekrani se ne dele: TV i
+telefon koriste isti UI alat i istu arhitekturu (ViewModel + StateFlow), ali se razlikuju
+po obliku i načinu upravljanja. Na televizoru nema dodira, fokus se pomera strelicama, a
+slova su veća.
 
 ### Šta deljeni modul zapravo nosi
 
@@ -367,7 +415,30 @@ predugačak naziv je odbijao tek Exposed, porukom na engleskom iz koje klijent n
 polje da ispravi. Da forma zaista proverava na telefonu, provereno je zaustavljanjem
 servera: greška se i tada pojavila ispod polja (snimak u poglavlju 2).
 
+**`RoomStatus`** (faza 5) iz dnevne mreže slotova i trenutnog vremena računa da li je sala
+van radnog vremena, slobodna (do kada i sledeće zauzeće) ili zauzeta (do kraja bloka).
+Uzastopni zauzeti slotovi su jedan blok i kad pripadaju različitim rezervacijama. TV ekran
+ga poziva svake sekunde, zato status prelazi tačno na granici termina, bez čekanja
+servera. U `:core` je, a ne u klijentskom modulu, jer je čista logika nad DTO klasama.
+
 Testovi u `commonTest` izvršavaju se na svakom targetu, jedna provera dokazana istovremeno za server i za Android.
+
+### Drugi klijent
+
+TV ekran je dodat bez ijedne izmene servera: između oznaka `faza-4` i `faza-5` u
+`:server` nije promenjena nijedna linija. Faza 5 je dodala 31 liniju koda u `:core`
+(`RoomStatus`), 81 u `:app:shared` i 452 u `:app:tvApp`, od kojih su dve trećine ekrani.
+Telefon je pri tome smanjen sa 2 167 na 2 120 linija, jer je deo koda prešao u deljeni sloj.
+
+| Klijent | Sopstveni kod | Deljeni kod koji koristi | Udeo deljenog |
+|---|---|---|---|
+| Server | 702 | 210 | 23,0 % |
+| Telefon | 2 120 | 291 | 12,1 % |
+| TV | 452 | 272 | 37,6 % |
+
+Broje se linije Kotlin koda bez praznih redova i komentara. Deljeni fajl se klijentu računa
+ceo, pa je udeo gornja granica. Metod, tabela ko koristi koji deljeni fajl i skripta za
+brojanje su u [izveštaju faze 5](docs/merenja/faza-5/README.md#3-deljeni-kod).
 
 ---
 
@@ -414,9 +485,9 @@ znakova i staje u postojeću kolonu `varchar(100)`, pa šema nije menjana.
 | ORM | Exposed |
 | Baza | H2 podrazumevano, PostgreSQL kroz konfiguraciju |
 | Serijalizacija | kotlinx.serialization (JSON) |
-| Android UI | Jetpack Compose, Material 3 |
+| Android UI | Jetpack Compose, Material 3, na telefonu i na Android TV-u |
 | Upravljanje stanjem | ViewModel + StateFlow, unidirekcioni tok podataka |
-| Mrežni klijent | Ktor Client (OkHttp engine) |
+| Mrežni klijent | Ktor Client (OkHttp engine), u deljenom modulu `:app:shared` |
 | Autentikacija | JWT (HS256) za zahteve, BCrypt za lozinke |
 | Datum i vreme | kotlinx-datetime, vremenska zona `Europe/Belgrade` |
 
@@ -486,10 +557,10 @@ ispravnim tokenom, ali bez uloge `ADMIN`, na administratorskoj ruti dobija `403`
 | 2 | Autentikacija (JWT + BCrypt), mreža slotova i rezervacija u aplikaciji, moje rezervacije i otkazivanje, prava vremenska zona | **urađeno** | `faza-2` |
 | 3 | Pravila za resurs u `:core`, filteri po lokaciji i opremi, upravljanje resursima, forma za resurs, globalni pregled rezervacija | **urađeno** | `faza-3` |
 | 4 | PostgreSQL varijanta: testovi i konkurentnost nad pravim PostgreSQL-om, negativni prolaz bez indeksa, merenje H2 naspram PostgreSQL-a | **urađeno** | `faza-4` |
-| 5 | Ekran sa informacijama o zauzetosti na STB uređaju (PPuTViOS1): samo prikaz, bez rezervisanja | sledeće | |
+| 5 | Ekran sa informacijama o zauzetosti na STB uređaju (PPuTViOS1), samo prikaz: `RoomStatus` u `:core`, deljeni klijentski sloj u `:app:shared`, Android TV aplikacija, analiza udela deljenog koda | **urađeno** | `faza-5` |
 
 Svaka završena faza ima git oznaku, pa se stanje projekta na kraju faze dobija sa
-`git checkout faza-1` … `faza-4`. Merenja nisu ostavljena za kraj: rade se od faze 1,
+`git checkout faza-1` … `faza-5`. Merenja nisu ostavljena za kraj: rade se od faze 1,
 posle svakog većeg koraka (poglavlje 4).
 
 ---
@@ -511,10 +582,10 @@ Navedena svesno, kao predložene granice obima:
 - **Vremenska zona je fiksirana na `Europe/Belgrade`**, i na serveru i na klijentu, namerno:
   radno vreme 08:00–20:00 je radno vreme kancelarije, ne telefona. Korisnik u drugoj zoni
   vidi termine po beogradskom vremenu.
-- **Ktor Client** je u `:app:androidApp`, ne u `:core`. Deljeni modul zato pokriva model i
-  pravila, ali ne i mrežni sloj. Razlog je što `ApiClient` koristi OkHttp engine, koji je
-  platformski; selidba u `:core` traži `expect`/`actual` engine i ima smisla tek uz drugi
-  klijent.
+- **Deljeni mrežni sloj pokriva samo javne rute.** HTTP klijent i `PublicApi` su od faze 5
+  u `:app:shared`, a rute koje traže prijavu ostaju u `ApiClient`-u telefona, jer zavise od
+  njegove sesije. Engine je izabran preko `expect`/`actual`, a postoji samo Android
+  varijanta (OkHttp).
 - **Server nema pool veza.** Svaka transakcija otvara novu vezu sa bazom. Nad H2 to skoro
   ništa ne košta, a nad PostgreSQL-om na Windows-u 41,5 ms, pa je propusnost oko 35 puta
   manja ([merenje](docs/merenja/faza-4/README.md#6-uzrok-cena-otvaranja-veze)). Pool veza
@@ -522,8 +593,15 @@ Navedena svesno, kao predložene granice obima:
 - **Odbijena rezervacija se izvršava tri puta.** Exposed posle greške baze ponavlja
   transakciju (podrazumevano tri pokušaja), pa zahtev za zauzet termin pre odgovora `409`
   tri puta pokušava upis. Rezultat je tačan, ali baza pod sukobom radi trostruki posao.
-- **Android klijent nema automatske testove.** Proveren je ručno, na fizičkom uređaju;
-  pravila koja koristi (`BookingRules`, `ResourceRules`) pokrivena su testovima u `:core`.
+- **Android klijenti nemaju automatske testove.** Provereni su ručno: telefon na fizičkom
+  uređaju, TV ekran na Android TV emulatoru i na telefonu. Logika koju koriste
+  (`BookingRules`, `ResourceRules`, `RoomStatus`) pokrivena je testovima u `:core`.
+- **TV ekran nije proveren na pravom STB uređaju**, nego na Android TV emulatoru (1080p) i
+  na telefonu. Brzina iscrtavanja i memorija na slabijem STB procesoru nisu merene.
+- **Adresa servera je upisana u kod**, u `MainActivity` na telefonu i u `TvActivity` na
+  TV-u, pa promena traži novi build (poglavlje 11).
+- **TV ekran se ne pokreće sam** posle uključivanja uređaja, nego iz TV pokretača. Za ekran
+  na zidu uređaj bi trebalo podesiti kao kiosk.
 - **Globalni pregled rezervacija nema straničenje.** Vraća sve rezervacije, i istoriju.
   Pri 10 000 rezervacija odgovor ima 2,6 MB i na serveru traje 32 ms; firma od 1 000
   zaposlenih toliko ima posle dve radne nedelje. Za stvarnu upotrebu potrebno je
@@ -552,7 +630,7 @@ projekta**, foldera u kome se nalazi `gradlew.bat`.
 
 ```bash
 # Testovi
-.\gradlew.bat :core:jvmTest           # pravila (BookingRules, ResourceRules), 21 test
+.\gradlew.bat :core:jvmTest           # pravila (BookingRules, ResourceRules, RoomStatus), 29 testova
 .\gradlew.bat :server:test            # konkurentnost i rute kroz HTTP, 11 testova, nad H2
 .\gradlew.bat :server:testPostgres    # isti testovi nad PostgreSQL-om 18.6
 .\gradlew.bat :server:negativniProlaz # TOCTOU bez indeksa; merenje, ne test
@@ -614,3 +692,17 @@ IP razvojne mašine se dobija komandom `ipconfig` (IPv4 Address). Oba uređaja m
 na istoj mreži. Fajl `app/androidApp/src/main/res/xml/network_security_config.xml` postoji
 zato što Android od verzije 9 blokira nekriptovani HTTP. Bez upisane adrese aplikacija
 tiho ne uspeva da se poveže, a poruka o grešci ne kaže zašto.
+
+**TV ekran** se instalira na STB uređaj sa Android TV-om ili na Android TV emulator
+(Android Studio, Device Manager: kategorija TV, uređaj „Television (1080p)", slika
+„Android TV"):
+
+```bash
+.\gradlew.bat :app:tvApp:installDebug
+```
+
+Aplikacija se pojavljuje u TV pokretaču kao „Hot Desking - sala". Pri prvom pokretanju
+bira se sala; izbor se pamti na uređaju, a taster OK na ekranu sale ga menja. Adresa
+servera se podešava isto kao za telefon, na dva mesta: `Server.baseUrl` u `TvActivity.kt`
+i `app/tvApp/src/main/res/xml/network_security_config.xml`. Emulator dopire do servera i
+preko `10.0.2.2` i preko IP adrese laptopa.
