@@ -1,11 +1,6 @@
 package rs.ftn.hotdesk.android.data
 
-import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -14,11 +9,9 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
-import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.json.Json
+import rs.ftn.hotdesk.client.PublicApi
+import rs.ftn.hotdesk.client.hotdeskHttpClient
 import rs.ftn.hotdesk.shared.model.AvailabilityDto
 import rs.ftn.hotdesk.shared.model.BookingDto
 import rs.ftn.hotdesk.shared.model.CreateBookingRequest
@@ -30,10 +23,12 @@ import rs.ftn.hotdesk.shared.model.ResourceType
 import rs.ftn.hotdesk.shared.model.UpsertResourceRequest
 
 /**
- * Ktor Client. U fazi 1 zivi u :androidApp modulu.
+ * Klijent servera za aplikaciju na telefonu.
  *
- * FAZA 2: preseliti u :shared/commonMain sa expect/actual HttpClientEngine-om.
- * Tek time deljeni modul pokriva i mrezni sloj, a ne samo model.
+ * Od faze 5 HTTP klijent i javne rute (lista resursa, mreza slotova) dolaze iz
+ * deljenog klijentskog modula :app:shared, koji koristi i ekran na STB uredjaju;
+ * engine se tamo bira preko expect/actual. Ovde ostaju rute koje traze prijavu,
+ * jer zavise od sesije telefona ([Session]).
  */
 object ApiClient {
 
@@ -57,18 +52,10 @@ object ApiClient {
      */
     var token: String? = null
 
-    private val client = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
-        install(HttpTimeout) {
-            requestTimeoutMillis = 10_000
-            connectTimeoutMillis = 5_000
-        }
-        defaultRequest {
-            contentType(ContentType.Application.Json)
-        }
-    }
+    private val client = hotdeskHttpClient()
+
+    /** Javne rute, iz deljenog modula; adresa se cita pri svakom pozivu. */
+    private val publicApi = PublicApi(client) { baseUrl }
 
     /** Ishod prijave. Mrezni prekid se ne hvata ovde nego u ViewModel-u. */
     sealed interface LoginOutcome {
@@ -97,21 +84,10 @@ object ApiClient {
         location: String? = null,
         amenities: Collection<String> = emptyList(),
         activeOnly: Boolean = true
-    ): List<ResourceDto> =
-        client.get("$baseUrl/api/resources") {
-            type?.let { parameter("type", it.name) }
-            location?.let { parameter("location", it) }
-            // Svaka stavka je zaseban parametar (?amenity=a&amenity=b); server vraca
-            // resurse koji imaju sve navedene.
-            amenities.forEach { parameter("amenity", it) }
-            // Server podrazumeva samo aktivne; neaktivne trazi upravljanje resursima.
-            if (!activeOnly) parameter("activeOnly", false)
-        }.body()
+    ): List<ResourceDto> = publicApi.resources(type, location, amenities, activeOnly)
 
     suspend fun availability(resourceId: String, at: Long): AvailabilityDto =
-        client.get("$baseUrl/api/resources/$resourceId/availability") {
-            parameter("at", at)
-        }.body()
+        publicApi.availability(resourceId, at)
 
     /** Token je istekao ili je nevazeci; [Session] je vec zatvorena kad se ovo baci. */
     class SessionExpiredException : Exception("Sesija je istekla.")
