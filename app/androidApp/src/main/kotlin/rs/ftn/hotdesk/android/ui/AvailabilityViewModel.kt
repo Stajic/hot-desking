@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import rs.ftn.hotdesk.android.data.ApiClient
+import rs.ftn.hotdesk.client.TimeFormat
 import rs.ftn.hotdesk.shared.model.CreateBookingRequest
 import rs.ftn.hotdesk.shared.model.ResourceDto
 import rs.ftn.hotdesk.shared.model.SlotDto

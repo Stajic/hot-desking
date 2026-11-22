@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Baner za Android TV pokretac: 320 x 180 piksela na xhdpi gustini (160 x 90 dp).
+  Zeleni kvadrat je "slobodno", linije su raspored sale.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp"
+    android:height="90dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#1B2430" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#2E7D32" android:pathData="M32,40h100v100h-100z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M158,52h130v16h-130z" />
+    <path android:fillColor="#90A4AE" android:pathData="M158,82h100v12h-100z" />
+    <path android:fillColor="#90A4AE" android:pathData="M158,106h116v12h-116z" />
+</vector>

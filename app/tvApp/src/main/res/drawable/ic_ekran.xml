@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ikonica aplikacije: isti motiv kao baner. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path android:fillColor="#1B2430" android:pathData="M0,0h48v48h-48z" />
+    <path android:fillColor="#2E7D32" android:pathData="M8,10h14v28h-14z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M26,14h14v5h-14z" />
+    <path android:fillColor="#90A4AE" android:pathData="M26,24h12v4h-12z" />
+    <path android:fillColor="#90A4AE" android:pathData="M26,32h14v4h-14z" />
+</vector>

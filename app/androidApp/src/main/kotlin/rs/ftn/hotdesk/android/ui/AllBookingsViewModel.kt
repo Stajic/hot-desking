@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import rs.ftn.hotdesk.android.data.ApiClient
+import rs.ftn.hotdesk.client.TimeFormat
 import rs.ftn.hotdesk.shared.model.BookingDto
 import kotlin.coroutines.cancellation.CancellationException
 

@@ -29,5 +29,6 @@ dependencyResolutionManagement {
 
 include(":app:androidApp")
 include(":app:shared")
+include(":app:tvApp")
 include(":core")
 include(":server")

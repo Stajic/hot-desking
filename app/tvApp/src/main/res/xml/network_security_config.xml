@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Isto kao u aplikaciji na telefonu: Android od verzije 9 blokira nekriptovani HTTP,
+  pa adresa lokalnog servera mora biti dozvoljena ovde. Adresa se podesava i u
+  TvActivity, i oba mesta moraju da se slazu.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- host masina iz Android emulatora -->
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <!-- uredjaj na istoj mrezi: IP laptopa -->
+        <domain includeSubdomains="true">192.168.1.5</domain>
+    </domain-config>
+</network-security-config>

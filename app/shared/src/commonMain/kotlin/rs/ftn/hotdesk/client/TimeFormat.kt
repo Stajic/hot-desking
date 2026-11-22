@@ -1,4 +1,4 @@
-package rs.ftn.hotdesk.android.ui
+package rs.ftn.hotdesk.client
 
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDateTime
@@ -16,6 +16,9 @@ import kotlin.time.Instant
  *
  * kotlinx-datetime nema lokalizovano formatiranje, pa su nazivi dana napisani ovde.
  * Zauzvrat klijent vise ne koristi ni java.text ni java.util.
+ *
+ * Od faze 5 je u deljenom klijentskom modulu: koriste ga i telefon i ekran na STB
+ * uredjaju, pa oba prikazuju vreme na isti nacin.
  */
 object TimeFormat {
 
