@@ -108,7 +108,7 @@ object BookingService {
             }
         } catch (e: ExposedSQLException) {
             // SQLState 23xxx = integrity constraint violation, isto na H2 i PostgreSQL-u.
-            if (e.sqlState?.startsWith("23") == true) BookingResult.SlotTaken else throw e
+            if (e.sqlState.startsWith("23") == true) BookingResult.SlotTaken else throw e
         }
     }
 

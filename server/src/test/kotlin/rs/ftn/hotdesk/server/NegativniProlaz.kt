@@ -163,7 +163,7 @@ private fun indexedCreate(userId: String, req: CreateBookingRequest, now: Long, 
             true
         }
     } catch (e: ExposedSQLException) {
-        if (e.sqlState?.startsWith("23") == true) false else throw e
+        if (e.sqlState.startsWith("23") == true) false else throw e
     }
 
 private fun isolationName(level: Int) = when (level) {
