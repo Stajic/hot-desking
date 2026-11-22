@@ -113,6 +113,10 @@ kontroli sa barijerom to se vidi u broju: **148 transakcija** za 50 zahteva, odn
 izvršava tri puta pre nego što server vrati `409`. Rezultat je tačan, ali baza pod
 sukobom radi trostruki posao.
 
+Ispravljeno posle faze 5: `BookingService.create` postavlja `maxAttempts = 1` samo za
+upis rezervacije, pa se odbijen zahtev izvršava jednom. U `ConcurrencyTest`-u je to 51
+neuspeo upis umesto 153, i nad H2 i nad PostgreSQL-om.
+
 ---
 
 ## 4. Vreme podizanja

@@ -57,6 +57,12 @@ object BookingService {
         // bez slotova. To je najlakse mesto za gresku u celom resenju.
         return try {
             transaction {
+                // Upis se ne ponavlja. Exposed posle SQLException-a podrazumevano ponavlja ceo
+                // blok do tri puta, a ovde je ocekivana greska narusavanje jedinstvenog indeksa:
+                // termin ostaje zauzet, pa ponovni pokusaj ne moze da uspe i samo utrostrucuje
+                // posao baze pod sukobom. Vazi samo za ovu transakciju.
+                maxAttempts = 1
+
                 val resource = Resources.selectAll()
                     .where { Resources.id eq req.resourceId }
                     .singleOrNull() ?: return@transaction BookingResult.ResourceNotFound

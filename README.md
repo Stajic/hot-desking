@@ -185,7 +185,10 @@ zauzetost uopšte: piše odmah i hvata izuzetak narušavanja ograničenja, koji 
 
 Prednosti:
 
-- nema zaključavanja i nema petlje ponovnog pokušaja
+- nema zaključavanja i nema petlje ponovnog pokušaja; odbijen upis ne ponavlja ni Exposed,
+  koji inače posle greške baze ponavlja celu transakciju do tri puta, jer ponovni pokušaj
+  nad zauzetim terminom ne može da uspe (`maxAttempts = 1` samo za upis rezervacije, posle
+  faze 5: u `ConcurrencyTest`-u 51 neuspeo upis umesto 153, na obe baze)
 - radi identično na H2 i na PostgreSQL-u (provereno u fazi 4: isti testovi prolaze i nad
   PostgreSQL-om 18.6)
 - delimično preklapanje (09:00–10:00 naspram 09:30–10:30) pada isto kao potpuno
@@ -590,9 +593,6 @@ Navedena svesno, kao predložene granice obima:
   ništa ne košta, a nad PostgreSQL-om na Windows-u 41,5 ms, pa je propusnost oko 35 puta
   manja ([merenje](docs/merenja/faza-4/README.md#6-uzrok-cena-otvaranja-veze)). Pool veza
   nije uveden.
-- **Odbijena rezervacija se izvršava tri puta.** Exposed posle greške baze ponavlja
-  transakciju (podrazumevano tri pokušaja), pa zahtev za zauzet termin pre odgovora `409`
-  tri puta pokušava upis. Rezultat je tačan, ali baza pod sukobom radi trostruki posao.
 - **Android klijenti nemaju automatske testove.** Provereni su ručno: telefon na fizičkom
   uređaju, TV ekran na Android TV emulatoru i na telefonu. Logika koju koriste
   (`BookingRules`, `ResourceRules`, `RoomStatus`) pokrivena je testovima u `:core`.
