@@ -1,0 +1,4 @@
+﻿"Klijent","Sopstveni_kod","Deljeni_kod","Udeo_deljenog","Deljeni_fajlovi"
+"Server","702","210","23","Dtos.kt, Enums.kt, BookingRules.kt, ResourceRules.kt"
+"Telefon","2120","291","12.1","HotdeskHttp.android.kt, HotdeskHttp.kt, PublicApi.kt, TimeFormat.kt, Dtos.kt, Enums.kt, BookingRules.kt, ResourceRules.kt"
+"TV","452","272","37.6","HotdeskHttp.android.kt, HotdeskHttp.kt, PublicApi.kt, TimeFormat.kt, Dtos.kt, Enums.kt, BookingRules.kt, RoomStatus.kt"
